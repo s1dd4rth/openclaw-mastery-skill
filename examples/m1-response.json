@@ -1,0 +1,70 @@
+{
+  "tool": "openclaw-mastery.verify_module",
+  "schema_version": 1,
+  "module": 1,
+  "checked_at": "2026-05-07T16:42:00Z",
+  "validator_version": "0.1.0",
+  "platform": "linux",
+  "checks": [
+    {
+      "id": "web-chat-responds",
+      "pass": true,
+      "detail": "Gateway responding (HTTP 200) at 127.0.0.1:18789",
+      "evidence": { "status_code": 200, "endpoint": "/v1/models" },
+      "fix_prompt": null
+    },
+    {
+      "id": "claw-has-name",
+      "pass": true,
+      "detail": "Claw is named 'Atlas'",
+      "evidence": { "soul_path": "~/.openclaw/workspaces/main/SOUL.md", "name_found": "Atlas" },
+      "fix_prompt": null
+    },
+    {
+      "id": "audit-no-critical",
+      "pass": true,
+      "detail": "0 critical, 2 expected (firewall-in-container, control-ui-port-60000-range), 8 passed",
+      "evidence": {
+        "critical": [],
+        "expected_fail": ["firewall-in-container", "control-ui-port-60000-range"],
+        "passed": ["os-info", "open-ports", "openclaw-audit", "gateway-bind", "credentials-perms", "channels-empty", "web-search-disabled", "heartbeat-interval"]
+      },
+      "fix_prompt": null
+    },
+    {
+      "id": "gateway-bound",
+      "pass": true,
+      "detail": "Bound to 127.0.0.1 with auth mode token",
+      "evidence": { "bind": "127.0.0.1", "auth_mode": "token" },
+      "fix_prompt": null
+    },
+    {
+      "id": "dm-policy",
+      "pass": true,
+      "detail": "DM policy: restricted; group policy: restricted",
+      "evidence": { "dm": "restricted", "group": "restricted" },
+      "fix_prompt": null
+    },
+    {
+      "id": "credentials-permissions",
+      "pass": true,
+      "detail": "Permissions: 700 (owner-only)",
+      "evidence": { "path": "~/.openclaw/credentials", "mode": "700", "platform": "linux" },
+      "fix_prompt": null
+    },
+    {
+      "id": "web-search-disabled",
+      "pass": true,
+      "detail": "web_search disabled",
+      "evidence": { "tools.web_search.enabled": false },
+      "fix_prompt": null
+    },
+    {
+      "id": "heartbeat-zero",
+      "pass": true,
+      "detail": "Heartbeat disabled (0)",
+      "evidence": { "gateway.heartbeat": 0 },
+      "fix_prompt": null
+    }
+  ]
+}
