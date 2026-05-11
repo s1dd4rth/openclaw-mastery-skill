@@ -12,25 +12,24 @@ For any module 1–10, runs that module's verification checks against your OpenC
 
 The OpenClaw CLI's `skills install` command takes a ClawHub slug only — there's no URL or local-path install option in current versions. Until this skill is published to ClawHub, install it manually by cloning into your workspace's `skills/` directory.
 
-**Find your agent dir:**
+OpenClaw's active workspace lives at `~/.openclaw/workspace/` (the `workspace/` directory containing your `SOUL.md`, `USER.md`, `AGENTS.md`, etc.). Skills go in `~/.openclaw/workspace/skills/`.
 
 ```bash
-ls ~/.openclaw/workspaces/
+mkdir -p ~/.openclaw/workspace/skills
+git clone https://github.com/s1dd4rth/openclaw-mastery-skill ~/.openclaw/workspace/skills/openclaw-mastery
 ```
 
-**Clone into it** (substitute your agent name for `<agent>`):
-
-```bash
-git clone https://github.com/s1dd4rth/openclaw-mastery-skill ~/.openclaw/workspaces/<agent>/skills/openclaw-mastery
-```
-
-**Start a fresh OpenClaw session** so it picks up the new skill, then verify:
+Start a fresh OpenClaw session so it picks up the new skill, then verify:
 
 ```bash
 openclaw skills list
 ```
 
 `openclaw-mastery` should appear with source `workspace` (workspace-scoped skills take precedence over bundled ones).
+
+### If `~/.openclaw/workspace/` doesn't exist on your install
+
+Some OpenClaw versions use a different layout. Check `ls ~/.openclaw/` — whichever sibling directory contains your `SOUL.md` is the workspace; clone into `<that-dir>/skills/openclaw-mastery` instead.
 
 ### Once on ClawHub (future)
 
