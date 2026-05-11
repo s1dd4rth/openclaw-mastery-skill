@@ -21,23 +21,50 @@ These are imperative instructions for the LLM agent loading this skill. Do them 
 
 **1. Identify the module number** from the user's request. If unclear, ask. If outside 1–10, return `{"tool":"openclaw-mastery.verify_module","schema_version":1,"module":N,"checks":[],"detail":"module N out of range"}`.
 
-**2. Detect the platform** by running `uname -s` once. Remember the result for the rest of the invocation. `Linux` → use GNU `stat -c "%a"`. `Darwin` → use BSD `stat -f "%A"`.
+**2. Look up the exact check count for that module** from the table below. You MUST execute and report on every single check. No skipping, no early termination.
 
-**3. Read the per-module recipe file** at `checks/m<N>.md` (relative to this skill's directory). Each recipe lists checks in order with the exact bash command to run, the pass/fail decision rule, and the `detail` / `evidence` / `fix_prompt` template.
+| Module | Total checks | Deterministic (you execute) | Manual (you emit `pass: null, manual: true`) |
+|---|---|---|---|
+| 1 | 8 | 8 | 0 |
+| 2 | 5 | 4 | 1 |
+| 3 | 2 | 1 | 1 |
+| 4 | 3 | 3 | 0 |
+| 5 | 4 | 3 | 1 |
+| 6 | 6 | 5 | 1 |
+| 7 | 4 | 3 | 1 |
+| 8 | 7 | 5 | 2 |
+| 9 | 7 | 5 | 2 |
+| 10 | 4 | 3 | 1 |
 
-**4. EXECUTE each check by running the bash command in your bash tool.** Do NOT paste the recipe text. Do NOT skip checks. Do NOT invent values. For every check, you must actually invoke the command and observe the real output.
+**3. Detect the platform** by running `uname -s` once. Remember the result for the rest of the invocation. `Linux` → use GNU `stat -c "%a"`. `Darwin` → use BSD `stat -f "%A"`.
 
-**5. Build one entry per check** in the `checks` array of the response, in the order the recipe lists them.
+**4. Read the per-module recipe file** at `checks/m<N>.md` (relative to this skill's directory). It lists every check in order with the exact bash command, pass/fail decision rule, and `detail` / `evidence` / `fix_prompt` template.
 
-**6. Return ONE JSON object** matching the contract below. No prose around it. No markdown fence. No explanation. Just the JSON.
+**5. Track your progress with a visible checklist.** Before executing, list the check IDs from the recipe like this:
+
+```
+Running module N verification (X checks total):
+[ ] 1. <check-id>
+[ ] 2. <check-id>
+...
+[ ] X. <check-id>
+```
+
+**6. EXECUTE each check in order using your bash tool.** After each check completes, mark it `[x]` in your tracking. Do NOT skip a check because it failed; failures are valid results — emit `pass: false` with the error in `detail` and CONTINUE to the next check.
+
+**7. STOP CONDITION: every check is marked `[x]`.** Not before. Not after one or two. Not when "the picture is clear." Every. Single. Check.
+
+**8. After all checks are marked done, your FINAL MESSAGE MUST BE the JSON object** matching the contract below. No prose. No summary. No "Here are the results:". No markdown fence. Just the JSON. If your last message is not a JSON object, you are not done — keep going.
 
 ## What you MUST NOT do
 
 - Do NOT display or paste the recipe file contents instead of executing the checks. The recipe is your script, not your output.
-- Do NOT guess or fabricate check results. If a command errors, the check is `pass: false` with the error in `detail`.
+- Do NOT stop after running 1, 2, or any partial number of checks. Look up the count in the table above and run them all.
+- Do NOT bail on a single check error. If a command fails, that check's `pass` is `false`; move on to the next check.
+- Do NOT guess or fabricate check results. If you didn't execute the command, the check has no result to report.
 - Do NOT include any secret values (gateway tokens, API keys, file contents of credentials/.env files) in `evidence` or `detail`.
-- Do NOT wrap the JSON in markdown code fences. The web app parser is strict.
-- Do NOT add commentary outside the JSON object.
+- Do NOT wrap the final JSON in markdown code fences. The web app parser is strict.
+- Do NOT add commentary outside the final JSON object. The progress checklist (step 5) is fine while you're running; it must NOT appear after the JSON.
 
 ## Purpose (context)
 
