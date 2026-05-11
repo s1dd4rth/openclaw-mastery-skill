@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.2.0-alpha.2] - 2026-05-11
+
+First-real-run iteration. Five fixes based on the JSON output from a live OpenClaw 2026.5.7 / macOS run.
+
+### Fixed
+- **`expandHome` path bug**: `path.join(homedir(), '/.openclaw/...')` wasn't resolving to the expected absolute path. Switched to plain string concatenation. Fixes `claw-has-name` returning "no SOUL.md found" when the file did exist.
+- **`audit-no-critical` JSON shape**: was reading `parsed.checks[]` (didn't exist), now reads the real `parsed.findings[]` and `parsed.summary.critical`. Fixes false-positive "0 critical, 0 total" when the audit returned actual data. Now also surfaces warn-count in evidence so user sees pending hardening suggestions.
+- **`gateway-bound`**: accepts `loopback` / `localhost` / `::1` as semantically equivalent to `127.0.0.1`. Modern OpenClaw stores `bind: "loopback"`. (Was pushed in interim commit 1b60aae.)
+
+### Changed (recipe-mismatch fixes)
+Three M1 checks were assumed against a pre-modern OpenClaw config schema that no longer exists. Until the recipes are redesigned to query the right modern surface, these now return `manual: true` rather than always-failing on `(unset)`:
+
+- **`dm-policy`**: modern OpenClaw uses `groups.open` / `groups.allowlist` (visible in audit's `summary.attack_surface` finding), not `policy.dm` / `policy.group`.
+- **`web-search-disabled`**: modern OpenClaw has no gateway-level web-search config; it's per-plugin (duckduckgo, exa, brave, etc).
+- **`heartbeat-zero`**: modern OpenClaw replaced `gateway.heartbeat` with workspace-level `HEARTBEAT.md`.
+
+Each `manual: true` entry includes a one-line note pointing the user at the right modern check.
+
+### Net effect on M1
+M1 v0.2.0-alpha.1: 8 deterministic checks, 6 wrong-on-modern-OpenClaw.
+M1 v0.2.0-alpha.2: 5 deterministic + 3 manual. Deterministic ones now match real CLI output.
+
+### Pending for v0.2.0-alpha.3
+- Reimplement `dm-policy` against `groups.open` / `groups.allowlist`.
+- Reimplement `web-search-disabled` against the plugin registry.
+- Reimplement `heartbeat-zero` against `~/.openclaw/workspace/HEARTBEAT.md` content.
+
 ## [0.2.0-alpha.1] - 2026-05-11
 
 **Architecture change: skill execution moves from LLM-driven to CLI-driven.**

@@ -33,7 +33,11 @@ const VALIDATOR_VERSION = readVersion();
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function expandHome(p) {
-  return p.startsWith('~') ? join(homedir(), p.slice(1)) : p;
+  // path.join can mishandle leading `/` on the second argument.
+  // Plain string concat is unambiguous.
+  if (p === '~') return homedir();
+  if (p.startsWith('~/')) return homedir() + p.slice(1);
+  return p;
 }
 
 /** Run a shell command, return { stdout, stderr, status }. Never throws. */
@@ -135,43 +139,39 @@ function check_claw_has_name() {
 
 function check_audit_no_critical() {
   const id = 'audit-no-critical';
-  // Try --json first, fall back to text parsing.
-  let r = sh('openclaw security audit --json 2>&1');
-  if (r.status === 0) {
-    try {
-      const parsed = JSON.parse(r.stdout);
-      const critical = (parsed.checks ?? []).filter(c => c.status === 'CRITICAL' || c.status === 'critical');
-      if (critical.length === 0) {
-        return pass(
-          id,
-          `0 critical, ${(parsed.checks ?? []).length} total`,
-          { critical: [], total: (parsed.checks ?? []).length },
-        );
-      }
-      return fail(
-        id,
-        `${critical.length} critical failure(s): ${critical.map(c => c.name).join(', ')}`,
-        { critical: critical.map(c => c.name) },
-        'Restart the gateway and re-run the audit.',
-      );
-    } catch {
-      // Fall through to text parsing.
-    }
-  }
-  // Text fallback.
-  r = sh('openclaw security audit 2>&1');
+  const r = sh('openclaw security audit --json 2>&1');
   if (r.status !== 0) {
-    return fail(id, `audit command failed (exit ${r.status}): ${(r.stdout || r.stderr).slice(0, 200)}`, null, 'Confirm `openclaw security audit` is available on this OpenClaw version.');
+    if (/command not found|no such file/i.test(r.stdout) || /command not found|no such file/i.test(r.stderr)) {
+      return fail(id, 'openclaw CLI not found on PATH', null, 'Add openclaw to PATH or install OpenClaw.');
+    }
+    return fail(id, `audit command failed (exit ${r.status}): ${(r.stdout || r.stderr).slice(0, 200)}`, null, 'Confirm `openclaw security audit --json` works on this OpenClaw version.');
   }
-  if (/command not found|no such file/i.test(r.stdout)) {
-    return fail(id, 'openclaw CLI not found on PATH', { sample: r.stdout.slice(0, 200) }, 'Add openclaw to PATH, or install OpenClaw if missing.');
+  let parsed;
+  try {
+    parsed = JSON.parse(r.stdout);
+  } catch (e) {
+    return fail(id, `audit JSON parse failed: ${String(e).slice(0, 100)}`, { stdout_sample: r.stdout.slice(0, 200) }, 'Check the audit output format on your OpenClaw version.');
   }
-  // Real audit ran. Look for CRITICAL/FAIL lines, excluding documented expected-fails.
-  const criticalLines = r.stdout.split('\n').filter(l => /CRITICAL|FAIL/i.test(l) && !/firewall.*container|control.ui.*60000/i.test(l));
-  if (criticalLines.length === 0) {
-    return pass(id, '0 critical (text-mode parse)', { mode: 'text', sample: r.stdout.slice(0, 200) });
+  // Modern OpenClaw shape: { summary: { critical, warn, info }, findings: [{ checkId, severity, title, ... }] }
+  const summary = parsed.summary ?? {};
+  const findings = parsed.findings ?? [];
+  const critical = findings.filter(f => f.severity === 'critical');
+  const warns = findings.filter(f => f.severity === 'warn' || f.severity === 'warning');
+  const evidence = {
+    summary,
+    critical_findings: critical.map(f => f.checkId),
+    warn_findings: warns.map(f => f.checkId),
+  };
+  if ((summary.critical ?? critical.length) === 0) {
+    const warnNote = warns.length > 0 ? `, ${warns.length} warn(s) — see evidence.warn_findings for hardening suggestions` : '';
+    return pass(id, `0 critical${warnNote}`, evidence);
   }
-  return fail(id, `${criticalLines.length} critical failure(s) (text mode)`, { lines: criticalLines.slice(0, 5) }, 'Restart the gateway and re-run the audit.');
+  return fail(
+    id,
+    `${critical.length} critical finding(s): ${critical.map(f => f.checkId).join(', ')}`,
+    evidence,
+    'Address each critical finding (run `openclaw security audit` for full remediation steps), then re-run.',
+  );
 }
 
 function configGet(key) {
@@ -200,19 +200,11 @@ function check_gateway_bound() {
 
 function check_dm_policy() {
   const id = 'dm-policy';
-  const dm = configGet('policy.dm');
-  const group = configGet('policy.group');
-  const evidence = { dm, group };
-  const isStrict = v => v && v !== 'open' && v !== 'none' && v !== 'unrestricted';
-  if (isStrict(dm) && isStrict(group)) {
-    return pass(id, `DM policy: ${dm}; group policy: ${group}`, evidence);
-  }
-  return fail(
-    id,
-    `DM policy: ${dm ?? '(unset)'}; group policy: ${group ?? '(unset)'} — at least one is permissive`,
-    evidence,
-    'Set policy.dm and policy.group to restricted, then restart the gateway.',
-  );
+  // Modern OpenClaw doesn't expose policy.dm / policy.group config keys.
+  // Group policy is now under groups.open / groups.allowlist (visible in audit
+  // findings as "groups: open=N, allowlist=N"). Until the CLI parses that
+  // audit text reliably, this check returns manual.
+  return manual(id, 'Manual on this OpenClaw version: check `openclaw security audit` output for "groups: open=0" (allowlist preferred). Modern OpenClaw uses groups.open / groups.allowlist instead of policy.dm.');
 }
 
 function check_credentials_permissions() {
@@ -242,30 +234,19 @@ function check_credentials_permissions() {
 
 function check_web_search_disabled() {
   const id = 'web-search-disabled';
-  const v = configGet('tools.web_search.enabled') ?? configGet('plugins.web_search.enabled');
-  if (v === 'false' || v === '0') {
-    return pass(id, 'web_search disabled', { value: v });
-  }
-  return fail(
-    id,
-    `web_search enabled (or policy unset): ${v ?? '(unset)'}`,
-    { value: v },
-    'Disable web_search in the tool policy. Module 7 will re-enable it deliberately later.',
-  );
+  // Modern OpenClaw doesn't have a gateway-level tools.web_search.enabled
+  // config key. Web search is per-plugin (e.g., the duckduckgo, exa, brave
+  // plugins each enable independently). Marked manual until the recipe is
+  // redesigned to inspect plugin states.
+  return manual(id, 'Manual on this OpenClaw version: check `openclaw plugins list | grep -i search` and confirm no search-provider plugins are enabled. Module 7 deliberately enables Brave Search.');
 }
 
 function check_heartbeat_zero() {
   const id = 'heartbeat-zero';
-  const v = configGet('gateway.heartbeat') ?? configGet('heartbeat');
-  if (v === '0' || v === '0m' || v === 'false' || v === 'off') {
-    return pass(id, `Heartbeat disabled (${v})`, { value: v });
-  }
-  return fail(
-    id,
-    `Heartbeat: ${v ?? '(unset)'}`,
-    { value: v },
-    'Set gateway.heartbeat to 0 and restart the gateway.',
-  );
+  // Modern OpenClaw doesn't expose gateway.heartbeat as a config key. Self-
+  // check / heartbeat behavior is now controlled per-agent via HEARTBEAT.md
+  // in the workspace. The recipe predates this change.
+  return manual(id, 'Manual on this OpenClaw version: check ~/.openclaw/workspace/HEARTBEAT.md exists and contains the periodic-self-check policy. Modern OpenClaw replaced gateway.heartbeat with workspace HEARTBEAT.md.');
 }
 
 // ── Module dispatch ──────────────────────────────────────────────────────
