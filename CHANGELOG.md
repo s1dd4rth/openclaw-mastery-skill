@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.2.0-alpha.1] - 2026-05-11
+
+**Architecture change: skill execution moves from LLM-driven to CLI-driven.**
+
+### Changed
+
+- **Validator now runs as a Node CLI**, not as agent-followed instructions. New `bin/verify.js` executable does all the work: recipe parsing, command execution, decision evaluation, JSON output. SKILL.md becomes a thin wrapper instructing the agent to make ONE bash call to the CLI and pass through its stdout.
+- **Why:** the previous skill-as-markdown architecture asked the agent to read the recipe and execute 8 commands sequentially. Empirical result on OpenClaw 2026.5.7: agents reliably stopped after 1-2 commands without producing the final JSON. The CLI moves all execution into deterministic Node code; agent discretion is removed from the execution path.
+- M1 (Install and Secure) implemented end-to-end in `bin/verify.js` with all 8 deterministic checks:
+  - `web-chat-responds`: now accepts HTTP 200/401/403 as "gateway alive" (no token needed for liveness probe)
+  - `claw-has-name`: searches both SOUL.md and IDENTITY.md (the modern OpenClaw onboarding creates IDENTITY.md, not SOUL.md by default)
+  - `audit-no-critical`: tries `--json` first, falls back to text parsing; treats command-not-found as fail (was a silent false-positive before)
+  - `gateway-bound`, `dm-policy`, `web-search-disabled`, `heartbeat-zero`: use `openclaw config get`
+  - `credentials-permissions`: handles both file (600/700) and directory (700) layouts. Older OpenClaw used a single credentials file; current version uses a credentials directory.
+- M2-M10 are stubs in the CLI for now: each returns a single `manual: true` "implementation pending" entry. The web app's manual-toggle path covers them until the per-module CLI runners land.
+
+### Added
+
+- `bin/verify.js`: Node CLI entry point. Run as `node bin/verify.js <module-number>`.
+
+### Why bump to 0.2.0
+
+Architecture change is significant enough to bump the minor; the pre-release `-alpha.1` continues since CLI assumptions for non-M1 modules are still unverified.
+
 ## [0.1.0-alpha.1] - 2026-05-10
 
 **Pre-release. CLI assumptions not yet verified against a live OpenClaw — treat as alpha.**

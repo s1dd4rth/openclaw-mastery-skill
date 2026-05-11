@@ -2,7 +2,7 @@
 
 A read-only OpenClaw skill that audits your setup against the [OpenClaw Mastery course](https://s1dd4rth.github.io/openclaw-mastery/) checklist and returns structured JSON per module.
 
-**Status:** v0.1.0 — pre-release. M1 (Install and Secure) implemented. M2–M10 stub responses. CLI assumptions need verification on a live OpenClaw before tagging — see [`docs/cli-assumptions.md`](docs/cli-assumptions.md).
+**Status:** v0.2.0-alpha.1 — pre-release. M1 (Install and Secure) implemented end-to-end via the bundled CLI (`bin/verify.js`). M2–M10 stub responses pending CLI rollout. See [`CHANGELOG.md`](CHANGELOG.md) for the architecture-change details.
 
 ## What it does
 

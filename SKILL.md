@@ -19,52 +19,35 @@ Trigger this skill when the user says any of:
 
 These are imperative instructions for the LLM agent loading this skill. Do them in order, every time.
 
-**1. Identify the module number** from the user's request. If unclear, ask. If outside 1–10, return `{"tool":"openclaw-mastery.verify_module","schema_version":1,"module":N,"checks":[],"detail":"module N out of range"}`.
+**1. Identify the module number** from the user's request. If unclear, ask. Valid range: 1–10.
 
-**2. Look up the exact check count for that module** from the table below. You MUST execute and report on every single check. No skipping, no early termination.
+**2. Run the bundled CLI ONCE.** This skill ships an executable Node script at `bin/verify.js` (in this skill's directory). It does all the work — recipe parsing, command execution, result aggregation, JSON output — without any LLM in the loop. Your job is to invoke it and return its output.
 
-| Module | Total checks | Deterministic (you execute) | Manual (you emit `pass: null, manual: true`) |
-|---|---|---|---|
-| 1 | 8 | 8 | 0 |
-| 2 | 5 | 4 | 1 |
-| 3 | 2 | 1 | 1 |
-| 4 | 3 | 3 | 0 |
-| 5 | 4 | 3 | 1 |
-| 6 | 6 | 5 | 1 |
-| 7 | 4 | 3 | 1 |
-| 8 | 7 | 5 | 2 |
-| 9 | 7 | 5 | 2 |
-| 10 | 4 | 3 | 1 |
-
-**3. Detect the platform** by running `uname -s` once. Remember the result for the rest of the invocation. `Linux` → use GNU `stat -c "%a"`. `Darwin` → use BSD `stat -f "%A"`.
-
-**4. Read the per-module recipe file** at `checks/m<N>.md` (relative to this skill's directory). It lists every check in order with the exact bash command, pass/fail decision rule, and `detail` / `evidence` / `fix_prompt` template.
-
-**5. Track your progress with a visible checklist.** Before executing, list the check IDs from the recipe like this:
+Use your bash tool to run:
 
 ```
-Running module N verification (X checks total):
-[ ] 1. <check-id>
-[ ] 2. <check-id>
-...
-[ ] X. <check-id>
+node ~/.openclaw/workspace/skills/openclaw-mastery/bin/verify.js <N>
 ```
 
-**6. EXECUTE each check in order using your bash tool.** After each check completes, mark it `[x]` in your tracking. Do NOT skip a check because it failed; failures are valid results — emit `pass: false` with the error in `detail` and CONTINUE to the next check.
+(replacing `<N>` with the module number).
 
-**7. STOP CONDITION: every check is marked `[x]`.** Not before. Not after one or two. Not when "the picture is clear." Every. Single. Check.
+If the user installed the skill at a non-default workspace path, adjust the path accordingly. The skill directory always contains `bin/verify.js`, `SKILL.md`, and `checks/`.
 
-**8. After all checks are marked done, your FINAL MESSAGE MUST BE the JSON object** matching the contract below. No prose. No summary. No "Here are the results:". No markdown fence. Just the JSON. If your last message is not a JSON object, you are not done — keep going.
+**3. Return the CLI's stdout VERBATIM as your final message.** The CLI emits a single JSON object on stdout. Pass it through unchanged. No prose around it. No markdown fence. No commentary. The web app parser is strict.
+
+That's the entire flow: ONE bash call, ONE JSON output. If you're tempted to make additional tool calls, run another bash command, or add explanation around the JSON, you're doing it wrong.
 
 ## What you MUST NOT do
 
-- Do NOT display or paste the recipe file contents instead of executing the checks. The recipe is your script, not your output.
-- Do NOT stop after running 1, 2, or any partial number of checks. Look up the count in the table above and run them all.
-- Do NOT bail on a single check error. If a command fails, that check's `pass` is `false`; move on to the next check.
-- Do NOT guess or fabricate check results. If you didn't execute the command, the check has no result to report.
-- Do NOT include any secret values (gateway tokens, API keys, file contents of credentials/.env files) in `evidence` or `detail`.
-- Do NOT wrap the final JSON in markdown code fences. The web app parser is strict.
-- Do NOT add commentary outside the final JSON object. The progress checklist (step 5) is fine while you're running; it must NOT appear after the JSON.
+- Do NOT read the recipe files (`checks/m*.md`) yourself and try to execute checks one-by-one. That's the OLD architecture — it was unreliable. The CLI does all execution now.
+- Do NOT add prose, summaries, or "Here are the results:" before the JSON. The CLI's stdout IS your output.
+- Do NOT wrap the JSON in markdown code fences.
+- Do NOT make multiple bash calls. ONE call to `verify.js`, that's it.
+- Do NOT modify the JSON — pass through verbatim.
+
+## Why this design
+
+Earlier versions of this skill asked the LLM agent to read the recipe markdown and execute each bash command sequentially. That worked for trivial modules but failed reliably on M1's 8-check sequence — agents tended to stop after 1–2 commands and never produce the final JSON. The CLI approach moves all execution into deterministic Node code; the agent's only job is to invoke it and pass through the output. Same JSON contract, same recipe markdown (kept as docs), reliable end-to-end.
 
 ## Purpose (context)
 
