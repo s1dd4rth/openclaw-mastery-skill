@@ -25,7 +25,7 @@ Start a fresh OpenClaw session so it picks up the new skill, then verify:
 openclaw skills list
 ```
 
-`openclaw-mastery` should appear with source `workspace` (workspace-scoped skills take precedence over bundled ones).
+`openclaw-mastery` should appear with source `openclaw-workspace` (workspace-scoped skills take precedence over bundled ones).
 
 ### If `~/.openclaw/workspace/` doesn't exist on your install
 
