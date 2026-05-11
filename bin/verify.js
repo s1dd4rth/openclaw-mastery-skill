@@ -184,14 +184,17 @@ function check_gateway_bound() {
   const bind = configGet('gateway.bind');
   const authMode = configGet('gateway.auth.mode') ?? configGet('gateway.auth');
   const evidence = { bind, auth_mode: authMode };
-  if (bind === '127.0.0.1' && authMode && authMode !== 'open' && authMode !== 'none') {
-    return pass(id, `Bound to 127.0.0.1 with auth mode ${authMode}`, evidence);
+  // 127.0.0.1, localhost, loopback, ::1 are all semantically "bound to localhost"
+  const isLocal = bind && ['127.0.0.1', 'localhost', 'loopback', '::1'].includes(bind);
+  const isAuthed = authMode && !['open', 'none', 'disabled'].includes(authMode);
+  if (isLocal && isAuthed) {
+    return pass(id, `Bound to ${bind} (localhost) with auth mode ${authMode}`, evidence);
   }
   return fail(
     id,
-    `Bound to ${bind ?? '(unset)'} with auth mode ${authMode ?? '(unset)'}`,
+    `Bound to ${bind ?? '(unset)'} with auth mode ${authMode ?? '(unset)'} — bind must be localhost-equivalent, auth must be on`,
     evidence,
-    'Set gateway.bind to 127.0.0.1 and ensure token auth is enabled, then restart the gateway.',
+    'Set gateway.bind to 127.0.0.1 (or loopback/localhost) and ensure token auth is enabled, then restart the gateway.',
   );
 }
 
