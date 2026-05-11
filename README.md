@@ -10,17 +10,37 @@ For any module 1–10, runs that module's verification checks against your OpenC
 
 ## Install
 
-> Verify install-from-URL is supported on your OpenClaw version before relying on this path; otherwise install from ClawHub once published.
+The OpenClaw CLI's `skills install` command takes a ClawHub slug only — there's no URL or local-path install option in current versions. Until this skill is published to ClawHub, install it manually by cloning into your workspace's `skills/` directory.
+
+**Find your agent dir:**
 
 ```bash
-openclaw skills install https://github.com/<owner>/openclaw-mastery-validator
+ls ~/.openclaw/workspaces/
 ```
 
-Or, in chat:
+**Clone into it** (substitute your agent name for `<agent>`):
 
+```bash
+git clone https://github.com/s1dd4rth/openclaw-mastery-skill ~/.openclaw/workspaces/<agent>/skills/openclaw-mastery
 ```
-Install the openclaw-mastery skill from https://github.com/<owner>/openclaw-mastery-validator
+
+**Start a fresh OpenClaw session** so it picks up the new skill, then verify:
+
+```bash
+openclaw skills list
 ```
+
+`openclaw-mastery` should appear with source `workspace` (workspace-scoped skills take precedence over bundled ones).
+
+### Once on ClawHub (future)
+
+When this skill is published, the install becomes one line:
+
+```bash
+openclaw skills install openclaw-mastery
+```
+
+To publish it yourself: enable the bundled `clawhub` skill, run `clawhub login`, then `clawhub skill publish <path-to-this-repo> --version 0.1.0-alpha.1`.
 
 ## Use
 

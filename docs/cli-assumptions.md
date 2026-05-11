@@ -16,6 +16,13 @@ If a command does not exist or returns unexpected output, update the recipe to m
 | 6 | `stat -c "%a" <path>` (Linux) / `stat -f "%A" <path>` (macOS) | `credentials-permissions` | Standard POSIX commands; well-defined. The branch on `uname -s` is the only validator-side platform code. |
 | 7 | `~/.openclaw/credentials` exists with mode 700 after `openclaw onboard` | `credentials-permissions` | Confirm the credentials file path on a fresh install. May differ on macOS (could live under `~/Library/Application Support/OpenClaw/` or similar). |
 
+## Verified findings (2026-05-11, OpenClaw 2026.5.7 on macOS)
+
+- **CONFIRMED FAILED — URL install:** `openclaw skills install <github-url>` is **not** supported. The CLI takes a ClawHub slug only. Error: `error: invalid skill slug`. This was assumption #3 (originally about ClawHub publishing latency and the URL fallback). Workaround: clone the skill into `~/.openclaw/workspaces/<agent-id>/skills/<skill-name>/` manually — OpenClaw discovers any `SKILL.md` dropped there on next session start (per `docs.openclaw.ai/tools/skills`). Long-term fix: publish to ClawHub via the bundled `clawhub` skill.
+- **CONFIRMED — workspace skills directory:** `~/.openclaw/workspaces/<agent-id>/skills/<skill-name>/SKILL.md`. Agent ID is the name given during `openclaw onboard` (not necessarily `main` or `default`).
+- **CONFIRMED — `openclaw skills` subcommands available:** `check`, `info`, `install`, `list`, `search`, `update`. No `add`, `link`, `from-path`, or `publish` (publish is in the separate `clawhub` CLI).
+- **OBSERVED — `openclaw config get` requires a path argument** (not just a key prefix). Use `openclaw config get <full.dotted.key>` form.
+
 ## How to test
 
 On a fresh OpenClaw install (Linux or macOS):
