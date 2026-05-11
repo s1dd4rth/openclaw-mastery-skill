@@ -112,28 +112,59 @@ function check_web_chat_responds() {
 function check_claw_has_name() {
   const id = 'claw-has-name';
   const candidates = [
-    '~/.openclaw/workspace/SOUL.md',
     '~/.openclaw/workspace/IDENTITY.md',
+    '~/.openclaw/workspace/SOUL.md',
   ];
+  const placeholders = ['', '[your_name]', 'tbd', 'null', 'your name here', 'your name', '<name>', 'unnamed'];
+  // Patterns ordered most-specific to least-specific. First match wins.
+  // Heading-only / first-h1 / identity-section heuristics removed: too risky
+  // (matches "# About" or "# Random" as if they were names). The diagnostic
+  // on miss surfaces file previews so we can teach the validator the right
+  // pattern when we see real content.
+  const namePatterns = [
+    // YAML-frontmatter `name: foo` between --- markers (most rigorous)
+    { name: 'yaml-frontmatter', re: /---[\s\S]*?\n\s*name\s*:\s*["']?([^"\n]+?)["']?\s*\n[\s\S]*?---/i },
+    // Plain `Name: foo` or `name: foo` or `Name - foo` or `Name = foo`
+    { name: 'name-field', re: /(?:^|\n)\s*(?:[#*\->]+\s*)*[Nn]ame\s*[:=\-]\s*["']?([^"\n]+?)["']?\s*(?:\n|$)/ },
+    // Prose: "I am Foo" / "My name is Foo" / "I'm Foo" / "Call me Foo"
+    { name: 'prose', re: /\b(?:I am|I'm|My name is|Call me)\s+([A-Z][\w'\-]{0,30})(?:[.,;!\s]|$)/ },
+  ];
+
+  const filesProbed = [];
   for (const c of candidates) {
-    const path = expandHome(c);
-    if (!existsSync(path)) continue;
-    const text = readFileSync(path, 'utf8');
-    // Look for Name: <something> or # Name <something>
-    const m = text.match(/(?:^|\n)\s*(?:[#*-]+\s*)?[Nn]ame\s*[:\-]\s*(.+?)\s*(?:\n|$)/);
-    if (!m) continue;
-    const value = m[1].trim().replace(/^["'`]|["'`]$/g, '');
-    const placeholders = ['', '[YOUR_NAME]', 'TBD', 'null', 'your name here', 'your name'];
-    if (placeholders.some(p => value.toLowerCase() === p.toLowerCase())) {
-      return fail(id, 'Name unset or placeholder', { source: c, name_found: value }, 'Open SOUL.md and set a real name in the Identity section. Save when done.');
+    const fullPath = expandHome(c);
+    if (!existsSync(fullPath)) {
+      filesProbed.push({ candidate: c, expanded: fullPath, exists: false });
+      continue;
     }
-    return pass(id, `Claw is named '${value}'`, { source: c, name_found: value });
+    const text = readFileSync(fullPath, 'utf8');
+    filesProbed.push({ candidate: c, expanded: fullPath, exists: true, size_bytes: text.length, preview_first_200: text.slice(0, 200) });
+    for (const { name: patternName, re } of namePatterns) {
+      const m = text.match(re);
+      if (!m) continue;
+      const value = m[1].trim().replace(/^["'`]|["'`]$/g, '');
+      if (placeholders.some(p => value.toLowerCase() === p)) {
+        return fail(id, `Name field is a placeholder: '${value}'`, { source: c, matched_pattern: patternName, name_found: value }, 'Open SOUL.md or IDENTITY.md and set a real name. Save when done.');
+      }
+      return pass(id, `Claw is named '${value}'`, { source: c, matched_pattern: patternName, name_found: value });
+    }
+  }
+
+  // Distinguish "no files found" from "files exist but no name extracted"
+  const anyExist = filesProbed.some(f => f.exists);
+  if (!anyExist) {
+    return fail(
+      id,
+      `No SOUL.md or IDENTITY.md found at expected paths (home: ${homedir()})`,
+      { home: homedir(), HOME_env: process.env.HOME, files_probed: filesProbed },
+      'Run `openclaw onboard` to (re)create your identity files, or check that your workspace is at ~/.openclaw/workspace/.',
+    );
   }
   return fail(
     id,
-    'No SOUL.md or IDENTITY.md found in ~/.openclaw/workspace/',
-    { searched: candidates },
-    'Run `openclaw onboard` to (re)create your identity files.',
+    `Found ${filesProbed.filter(f => f.exists).length} identity file(s) but couldn't extract a name from any (tried ${namePatterns.length} patterns)`,
+    { files_probed: filesProbed, patterns_tried: namePatterns.map(p => p.name) },
+    'Add a `Name: <your-claw-name>` line to SOUL.md or IDENTITY.md, or run `openclaw onboard` to regenerate identity files in a recognized format. Paste the file_probed.preview_first_200 from this evidence so the validator can be taught the right pattern.',
   );
 }
 

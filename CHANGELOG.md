@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.2.0-alpha.3] - 2026-05-11
+
+### Fixed
+
+- **`claw-has-name` better diagnostics + multi-pattern extraction.** The previous version had a single regex that only matched literal `Name: foo`. Real OpenClaw identity files use varied formats (YAML frontmatter, `# Identity` heading + value, prose like "I am Clawdy"). Now tries 4 patterns: yaml-frontmatter, name-field, identity-section, prose. Distinguishes "no files found" from "files exist but no name extracted" — the previous error message conflated them and was misleading.
+- **Better evidence on miss**: when no name can be extracted, returns a 200-char preview of every file probed so we can see what format the user has and add a pattern. Includes `homedir()` and `process.env.HOME` so we can debug environment differences.
+- **Candidate order swapped**: IDENTITY.md probed first (it's the modern OpenClaw default), SOUL.md fallback (older).
+
 ## [0.2.0-alpha.2] - 2026-05-11
 
 First-real-run iteration. Five fixes based on the JSON output from a live OpenClaw 2026.5.7 / macOS run.
