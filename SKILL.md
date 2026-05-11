@@ -6,7 +6,40 @@ version: 0.1.0
 
 # OpenClaw Mastery — Course Validator
 
-## Purpose
+## When to use this skill
+
+Trigger this skill when the user says any of:
+
+- "Use openclaw-mastery to verify module N" (where N is 1–10)
+- "Run the course validator for module N"
+- "Check my setup for module N"
+- Any equivalent phrasing that asks to verify a specific OpenClaw Mastery module
+
+## What you MUST do when triggered
+
+These are imperative instructions for the LLM agent loading this skill. Do them in order, every time.
+
+**1. Identify the module number** from the user's request. If unclear, ask. If outside 1–10, return `{"tool":"openclaw-mastery.verify_module","schema_version":1,"module":N,"checks":[],"detail":"module N out of range"}`.
+
+**2. Detect the platform** by running `uname -s` once. Remember the result for the rest of the invocation. `Linux` → use GNU `stat -c "%a"`. `Darwin` → use BSD `stat -f "%A"`.
+
+**3. Read the per-module recipe file** at `checks/m<N>.md` (relative to this skill's directory). Each recipe lists checks in order with the exact bash command to run, the pass/fail decision rule, and the `detail` / `evidence` / `fix_prompt` template.
+
+**4. EXECUTE each check by running the bash command in your bash tool.** Do NOT paste the recipe text. Do NOT skip checks. Do NOT invent values. For every check, you must actually invoke the command and observe the real output.
+
+**5. Build one entry per check** in the `checks` array of the response, in the order the recipe lists them.
+
+**6. Return ONE JSON object** matching the contract below. No prose around it. No markdown fence. No explanation. Just the JSON.
+
+## What you MUST NOT do
+
+- Do NOT display or paste the recipe file contents instead of executing the checks. The recipe is your script, not your output.
+- Do NOT guess or fabricate check results. If a command errors, the check is `pass: false` with the error in `detail`.
+- Do NOT include any secret values (gateway tokens, API keys, file contents of credentials/.env files) in `evidence` or `detail`.
+- Do NOT wrap the JSON in markdown code fences. The web app parser is strict.
+- Do NOT add commentary outside the JSON object.
+
+## Purpose (context)
 
 Verify the user's OpenClaw setup against the OpenClaw Mastery course checklist for a given module. Returns structured JSON the OpenClaw Mastery web app can parse, or that the user can paste back into the web app as a fallback.
 
