@@ -142,7 +142,11 @@ function check_claw_has_name() {
     for (const { name: patternName, re } of namePatterns) {
       const m = text.match(re);
       if (!m) continue;
-      const value = m[1].trim().replace(/^["'`]|["'`]$/g, '');
+      // Strip surrounding quotes, markdown bold/italic asterisks, backticks, and re-trim.
+      const value = m[1]
+        .trim()
+        .replace(/^[*_`"'\s]+|[*_`"'\s]+$/g, '')
+        .trim();
       if (placeholders.some(p => value.toLowerCase() === p)) {
         return fail(id, `Name field is a placeholder: '${value}'`, { source: c, matched_pattern: patternName, name_found: value }, 'Open SOUL.md or IDENTITY.md and set a real name. Save when done.');
       }
