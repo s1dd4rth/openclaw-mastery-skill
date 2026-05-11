@@ -10,6 +10,29 @@ version: 0.1.0
 
 Verify the user's OpenClaw setup against the OpenClaw Mastery course checklist for a given module. Returns structured JSON the OpenClaw Mastery web app can parse, or that the user can paste back into the web app as a fallback.
 
+## Prerequisites
+
+Recipes assume a Unix-y shell environment. Make sure these are on the host running OpenClaw:
+
+| Tool | Used for | Install if missing |
+|---|---|---|
+| `bash` | shell for running recipe commands | comes with macOS, Linux; on Windows use WSL2 |
+| `curl` | gateway HTTP probes (M1) | preinstalled on macOS, Linux, WSL2 |
+| `git` | n/a — only for installing this skill itself | preinstalled on macOS, Linux, WSL2 |
+| `grep`, `sed`, `stat` | identity-file inspection (M1, M2, M5–M9) | preinstalled on macOS, Linux, WSL2; macOS uses BSD `stat` (recipes branch on `uname -s`) |
+| `jq` | parsing structured CLI output (M3, M4, M5, M6, M9) | `brew install jq` (macOS) / `apt install jq` (Debian/Ubuntu) / `dnf install jq` (Fedora) |
+
+If a check fails because a prerequisite is missing, the recipe surfaces the error in `detail` and `pass: false` — re-run after installing the dep.
+
+## Platform support
+
+| Platform | Status |
+|---|---|
+| **Linux** (Hostinger VPS, generic distros) | Supported. Primary target for the course. |
+| **macOS** (Mac mini, Apple Silicon or Intel) | Supported. `stat` syntax is auto-detected. |
+| **Windows via WSL2** | Supported. Behaves like Linux for the validator. |
+| **Windows native** | Not supported. Recipes need POSIX shell + GNU/BSD coreutils that don't exist in `cmd.exe` or PowerShell natively. Use WSL2. |
+
 ## Authorized scope (insider authorization model)
 
 This skill performs read-only introspection of course-relevant state. By installing it, the user authorizes these specific operations on their own OpenClaw instance.

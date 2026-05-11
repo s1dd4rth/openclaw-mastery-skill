@@ -22,6 +22,21 @@ If a command does not exist or returns unexpected output, update the recipe to m
 - **CONFIRMED — workspace skills directory:** `~/.openclaw/workspace/skills/<skill-name>/SKILL.md` (note the singular `workspace/`, not `workspaces/`). The active workspace is a single directory at `~/.openclaw/workspace/` containing the agent's identity files (SOUL.md, USER.md, AGENTS.md, etc.) and a git repo. The separate `~/.openclaw/agents/<agent-id>/` directory is the agent registry, NOT where skills go. A fresh install has no `skills/` subdirectory — `mkdir -p ~/.openclaw/workspace/skills` is required before the first git-clone.
 - **CONFIRMED — `openclaw skills` subcommands available:** `check`, `info`, `install`, `list`, `search`, `update`. No `add`, `link`, `from-path`, or `publish` (publish is in the separate `clawhub` CLI).
 - **OBSERVED — `openclaw config get` requires a path argument** (not just a key prefix). Use `openclaw config get <full.dotted.key>` form.
+- **CONFIRMED — workspace install end-to-end:** clone into `~/.openclaw/workspace/skills/<name>/`, restart session, skill appears in `openclaw skills list` with source `openclaw-workspace` and status `✓ ready`.
+- **FIXED — recipe bug:** M5 and M6 used `openclaw skills list --json --workspace main`. The `--workspace` flag does not exist; the CLI uses `--agent <id>` (with sensible defaults). Removed the flag entirely from recipes — `openclaw skills list` defaults to the active workspace.
+
+## Platform support matrix
+
+| Platform | Status | Notes |
+|---|---|---|
+| **Linux** (Hostinger VPS, Ubuntu, Debian, Fedora, etc.) | Supported (primary target, recipes unverified end-to-end) | All recipe commands are POSIX. Confirm `jq` is installed. |
+| **macOS** (Mac mini, Apple Silicon or Intel) | Supported, install verified, recipe execution unverified | `stat` syntax auto-detects via `uname -s`. Workspace path: `~/.openclaw/workspace/`. |
+| **Windows via WSL2** | Supported (same as Linux from validator's perspective) | OpenClaw runs inside WSL2; recipes operate on WSL filesystem. |
+| **Windows native** (cmd, PowerShell) | NOT supported | No bash, no POSIX paths, no GNU/BSD coreutils. Course directs Windows users to WSL2. |
+
+## Workspace path on Linux — still unverified
+
+We confirmed `~/.openclaw/workspace/` (singular, no agent subdir) on macOS. Linux may use the same layout or differ (e.g., XDG-style `~/.config/openclaw/...`). Recipes currently assume the macOS-confirmed path. First Hostinger VPS test will confirm or surface a divergence to fix.
 
 ## How to test
 
