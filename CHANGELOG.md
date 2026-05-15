@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.2.0-alpha.4] - 2026-05-15
+
+**Security refactor: drop `bash -lc` from the execution path.**
+
+### Changed
+- **All external calls now use argv-style execFile or native `fetch` — no shell.** `bin/verify.js` previously invoked `spawnSync('bash', ['-lc', cmd])` for curl probes, `openclaw security audit --json`, and `openclaw config get <key>`. That pattern triggered OpenClaw's `skills.code_safety` / `dangerous-exec` audit rule ("Shell command execution detected"), which made M1's `audit-no-critical` check fail circularly whenever the openclaw-mastery skill itself was installed.
+- **`check_web_chat_responds`** now uses native `fetch` + `AbortController` for timeout instead of shelling out to curl. No `child_process` for the HTTP probe at all.
+- **`check_audit_no_critical`** and **`configGet`** invoke `openclaw` directly via `execFileSync('openclaw', [...args])` — no shell interpretation, no injection surface, stderr stays separate from stdout (so the `2>&1` workaround for noisy audit output is also gone).
+
+### Fixed
+- **`check_audit_no_critical` no longer fail-fasts on non-zero exit.** Modern OpenClaw exits non-zero from `security audit --json` when critical findings exist but still produces parseable JSON on stdout. The check now bails only when stdout is empty (i.e. the CLI didn't actually run).
+
+### Why
+The validator must invoke the openclaw CLI to probe config and audit state, so `node:child_process` can't be eliminated. But `bash -lc` was unnecessary — argv-style exec carries the same capability without the shell-injection surface, and the audit's `dangerous-exec` rule keys on shell execution rather than any use of `node:child_process`.
+
 ## [0.2.0-alpha.3] - 2026-05-11
 
 ### Fixed

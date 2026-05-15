@@ -4,12 +4,14 @@
  *
  * Usage: node bin/verify.js <module-number>
  *
- * Reads no LLM input. Executes each check for the given module synchronously.
- * Outputs ONE JSON object on stdout, exits 0. The SKILL.md wrapper invokes
- * this CLI and returns its stdout verbatim — no agent discretion in the path.
+ * Reads no LLM input. Executes each check for the given module and outputs
+ * ONE JSON object on stdout, exits 0. All external calls go through argv-style
+ * execFile (no shell) or native fetch — no `bash -lc` and no shell-injection
+ * surface. The SKILL.md wrapper invokes this CLI and returns its stdout verbatim
+ * — no agent discretion in the path.
  */
 
-import { execSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync, existsSync } from 'node:fs';
 import { homedir, platform as osPlatform } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -40,18 +42,36 @@ function expandHome(p) {
   return p;
 }
 
-/** Run a shell command, return { stdout, stderr, status }. Never throws. */
-function sh(cmd, opts = {}) {
-  const r = spawnSync('bash', ['-lc', cmd], {
-    encoding: 'utf8',
-    timeout: opts.timeoutMs ?? 30_000,
-    ...opts,
-  });
-  return {
-    stdout: (r.stdout || '').trim(),
-    stderr: (r.stderr || '').trim(),
-    status: r.status ?? -1,
-  };
+/** Run a binary with argv (no shell), return { stdout, stderr, status }. Never throws. */
+function runCmd(cmd, args, opts = {}) {
+  try {
+    const stdout = execFileSync(cmd, args, {
+      encoding: 'utf8',
+      timeout: opts.timeoutMs ?? 30_000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { stdout: stdout.trim(), stderr: '', status: 0 };
+  } catch (e) {
+    return {
+      stdout: ((e.stdout ?? '') + '').trim(),
+      stderr: ((e.stderr ?? e.message ?? '') + '').trim(),
+      status: typeof e.status === 'number' ? e.status : -1,
+    };
+  }
+}
+
+/** HTTP probe via native fetch with timeout. Never throws. */
+async function httpProbe(url, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    return { ok: true, status: res.status, error: null };
+  } catch (e) {
+    return { ok: false, status: null, error: String(e?.message ?? e) };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Permissions probe that handles both files and directories on Linux + macOS. */
@@ -78,20 +98,18 @@ function manual(id, detail) {
 
 // ── Module 1 checks (all 8 deterministic) ────────────────────────────────
 
-function check_web_chat_responds() {
+async function check_web_chat_responds() {
   const id = 'web-chat-responds';
-  const r = sh(
-    'curl -sS -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:18789/v1/models',
-  );
-  if (r.status !== 0 || !r.stdout) {
+  const r = await httpProbe('http://127.0.0.1:18789/v1/models', 5000);
+  if (!r.ok) {
     return fail(
       id,
-      `Gateway not responding: ${r.stderr || 'no output from curl'}`,
-      { status_code: null, error: r.stderr.slice(0, 300) },
+      `Gateway not responding: ${r.error || 'no response'}`,
+      { status_code: null, error: (r.error ?? '').slice(0, 300) },
       'Restart the gateway via the Hostinger dashboard, or run `openclaw gateway restart`.',
     );
   }
-  const code = parseInt(r.stdout, 10);
+  const code = r.status;
   // 200 = open or token in env, 401/403 = gateway up but rejecting unauthenticated probe.
   // Both prove the gateway is alive and listening on 18789.
   if (code === 200 || code === 401 || code === 403) {
@@ -174,12 +192,14 @@ function check_claw_has_name() {
 
 function check_audit_no_critical() {
   const id = 'audit-no-critical';
-  const r = sh('openclaw security audit --json 2>&1');
-  if (r.status !== 0) {
-    if (/command not found|no such file/i.test(r.stdout) || /command not found|no such file/i.test(r.stderr)) {
+  const r = runCmd('openclaw', ['security', 'audit', '--json']);
+  // Audit may exit non-zero when critical findings exist — only bail when there's
+  // also no JSON on stdout (i.e. the CLI didn't actually run).
+  if (!r.stdout) {
+    if (/command not found|no such file|enoent/i.test(r.stderr)) {
       return fail(id, 'openclaw CLI not found on PATH', null, 'Add openclaw to PATH or install OpenClaw.');
     }
-    return fail(id, `audit command failed (exit ${r.status}): ${(r.stdout || r.stderr).slice(0, 200)}`, null, 'Confirm `openclaw security audit --json` works on this OpenClaw version.');
+    return fail(id, `audit command failed (exit ${r.status}): ${(r.stderr || '').slice(0, 200)}`, null, 'Confirm `openclaw security audit --json` works on this OpenClaw version.');
   }
   let parsed;
   try {
@@ -210,7 +230,7 @@ function check_audit_no_critical() {
 }
 
 function configGet(key) {
-  const r = sh(`openclaw config get ${key} 2>/dev/null`);
+  const r = runCmd('openclaw', ['config', 'get', key]);
   return r.status === 0 ? r.stdout : null;
 }
 
@@ -287,8 +307,8 @@ function check_heartbeat_zero() {
 // ── Module dispatch ──────────────────────────────────────────────────────
 
 const MODULE_RUNNERS = {
-  1: () => [
-    check_web_chat_responds(),
+  1: async () => [
+    await check_web_chat_responds(),
     check_claw_has_name(),
     check_audit_no_critical(),
     check_gateway_bound(),
@@ -329,6 +349,6 @@ if (!Number.isFinite(moduleNum) || moduleNum < 1 || moduleNum > 10) {
 }
 
 const runner = MODULE_RUNNERS[moduleNum];
-response.checks = runner ? runner() : stubModule(moduleNum);
+response.checks = runner ? await runner() : stubModule(moduleNum);
 
 process.stdout.write(JSON.stringify(response));
