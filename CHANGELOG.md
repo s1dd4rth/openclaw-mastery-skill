@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.5] - 2026-05-16
+
+### Fixed
+- **Always emit valid JSON, even when a check throws.** The SKILL.md contract
+  is "exactly ONE JSON object on stdout, returned verbatim." Previously, if any
+  check function threw in an environment we couldn't reproduce (a `statSync`
+  edge, an unexpected CLI shape), the exception propagated, no JSON was written,
+  and the process exited non-zero with a stack trace — so the agent pasted
+  non-JSON and the web app's parser rejected it ("module N is not returning
+  JSON"). The runner call is now wrapped: any throw still produces a valid JSON
+  object with the stack trace in `detail`, exit 0. This both preserves the
+  contract and turns an opaque failure into a parseable diagnostic.
+- Verified M6 (the heaviest module) emits valid JSON in isolation; the
+  hardening is module-agnostic.
+
 ## [0.3.0-alpha.4] - 2026-05-16
 
 ### Fixed

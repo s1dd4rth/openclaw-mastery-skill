@@ -1098,7 +1098,17 @@ if (!Number.isFinite(moduleNum) || moduleNum < 1 || moduleNum > 10) {
   process.exit(2);
 }
 
+// The SKILL.md contract is "exactly ONE JSON object on stdout, returned
+// verbatim." A check that throws in an environment we can't see must NOT
+// break that contract by crashing with a stack trace — the agent would then
+// paste non-JSON. Catch anything, still emit valid JSON, exit 0.
 const runner = MODULE_RUNNERS[moduleNum];
-response.checks = runner ? await runner() : stubModule(moduleNum);
+try {
+  response.checks = runner ? await runner() : stubModule(moduleNum);
+} catch (e) {
+  response.checks = [];
+  response.detail = `module ${moduleNum} runner threw: ${String(e?.stack ?? e?.message ?? e).slice(0, 400)}`;
+}
 
 process.stdout.write(JSON.stringify(response));
+process.exit(0);
