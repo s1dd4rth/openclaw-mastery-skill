@@ -1038,6 +1038,37 @@ function stubModule(n) {
 // ── Main ─────────────────────────────────────────────────────────────────
 
 const moduleArg = process.argv[2];
+
+// Diagnostic mode: `verify.js all` runs every module and prints a compact
+// human summary (one line per module). NOT the schema'd contract — that's
+// the per-module path used by the web app. This exists so operators can
+// sanity-check the whole course with one short, paste-safe command.
+if (moduleArg === 'all') {
+  const lines = [];
+  for (let n = 1; n <= 10; n++) {
+    try {
+      const runner = MODULE_RUNNERS[n];
+      const checks = runner ? await runner() : stubModule(n);
+      const mark = c => (c.pass === true ? 'P' : c.pass === false ? 'F' : 'M');
+      const p = checks.filter(c => c.pass === true).length;
+      const f = checks.filter(c => c.pass === false).length;
+      const m = checks.filter(c => c.pass === null).length;
+      lines.push(
+        `M${n}  ${p}P ${f}F ${m}M  |  ` +
+          checks.map(c => `${c.id}=${mark(c)}`).join('  '),
+      );
+    } catch (e) {
+      lines.push(`M${n}  ERROR: ${String(e?.message ?? e).slice(0, 160)}`);
+    }
+  }
+  process.stdout.write(
+    `openclaw-mastery validator ${VALIDATOR_VERSION} (${PLATFORM})\n` +
+      lines.join('\n') +
+      '\n',
+  );
+  process.exit(0);
+}
+
 const moduleNum = parseInt(moduleArg, 10);
 
 const response = {

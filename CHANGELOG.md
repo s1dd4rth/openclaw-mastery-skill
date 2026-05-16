@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.3] - 2026-05-16
+
+### Added
+- **`verify.js all`** diagnostic mode: runs every module 1–10 and prints a
+  compact one-line-per-module P/F/M summary, then exits 0. Not the schema'd
+  contract (the per-module path still serves the web app) — this exists so the
+  whole course can be sanity-checked with one short, paste-safe command instead
+  of a fragile shell `for` loop (which kept getting mangled on paste:
+  wrong-cwd, REPL launch, line-wrap).
+
 ## [0.3.0-alpha.2] - 2026-05-16
 
 Live-mini shape reconciliation — four parser bugs + one removed config key,
