@@ -6,6 +6,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.2] - 2026-05-16
+
+Live-mini shape reconciliation — four parser bugs + one removed config key,
+all surfaced by running against OpenClaw 2026.5.12.
+
+### Fixed
+- **M2 `user-exists`**: tolerates markdown-decorated fields (`**Name:** X`,
+  `## Name:`) and accepts a `## Focus` section heading, not only a one-line
+  `Focus:` field. Modern onboarding writes a "## Focus (Current Week)" section.
+- **M5 `both-skills-work`**: dropped the non-existent `skills list --json
+  --active` flag (OpenClaw rejects it). "Active" is now derived from
+  `eligible === true && disabled !== true` on the plain `skills list --json`.
+- **M6 `imap-installed`**: modern `skills list` has no `ready`/`status` field;
+  falls back to the same `eligible && !disabled` proxy.
+- **M9 `writer-exists`**: `agents list --json` is a top-level array whose key
+  is `id` (display name is `identityName`) — there is no `name` field. Matches
+  on `id`/`identityName` now instead of always missing.
+
+### Changed
+- **M7 `brave-configured`**: `tools.web_search.provider` is not a config key on
+  modern OpenClaw ("Config path not found"); web search is per-plugin. Mirrors
+  M1's treatment of removed keys — returns `manual` with a note pointing at
+  `openclaw plugins list`. Still deterministic-passes if the key exists on
+  older builds. (Plugin-list-based detection is a follow-up once the
+  `plugins list --json` shape is captured.)
+
 ## [0.3.0-alpha.1] - 2026-05-16
 
 ### Fixed

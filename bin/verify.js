@@ -391,12 +391,18 @@ function check_user_exists() {
   if (text === null) {
     return fail(id, 'USER.md missing', { path, name_present: false, focus_present: false }, 'Open USER.md and set a real Name: and Focus: line. Keep the file under 500 words.');
   }
-  const nameM = text.match(/^\s*name\s*:\s*(.+)$/im);
-  const focusM = text.match(/^\s*focus(?:\s*area)?\s*:\s*(.+)$/im);
-  const nameVal = nameM ? nameM[1].trim().replace(/^[*_`"'\s]+|[*_`"'\s]+$/g, '') : null;
-  const focusVal = focusM ? focusM[1].trim().replace(/^[*_`"'\s]+|[*_`"'\s]+$/g, '') : null;
+  const strip = v => v.trim().replace(/^[*_`"'\s]+|[*_`"'\s]+$/g, '').trim();
+  // Tolerate markdown decoration: `**Name:** X`, `## Name: X`, `- Name = X`.
+  const nameM = text.match(/^[*_#>\s-]*name\s*[:=]\s*(.+)$/im);
+  const nameVal = nameM ? strip(nameM[1]) : null;
   const namePresent = !!nameVal && !isPlaceholder(nameVal);
-  const focusPresent = !!focusVal && !isPlaceholder(focusVal);
+  // Focus: accept a `Focus:` / `Focus area:` field OR a `## Focus` section
+  // heading. Modern onboarding writes a "## Focus (Current Week)" section,
+  // not a one-line field — both satisfy the recipe's intent.
+  const focusFieldM = text.match(/^[*_>\s-]*focus(?:\s*area)?\s*[:=]\s*(.+)$/im);
+  const focusHeadingM = text.match(/^#{1,4}\s*focus\b/im);
+  const focusVal = focusFieldM ? strip(focusFieldM[1]) : null;
+  const focusPresent = (!!focusVal && !isPlaceholder(focusVal)) || !!focusHeadingM;
   const evidence = { path, name_present: namePresent, focus_present: focusPresent };
   if (namePresent && focusPresent) {
     return pass(id, 'USER.md present with name and focus area', evidence);
@@ -579,23 +585,30 @@ function check_quick_note_exists() {
   return fail(id, 'quick-note workspace skill missing', { skill_path: path, exists: false }, "Tell the Claw: 'Create the quick-note SKILL.md in the workspace skills folder now.'");
 }
 
+// Modern `skills list --json` has no `--active` flag and no active/ready field.
+// A skill is effectively active when it's eligible and not disabled.
+function skillActive(skillsData, name) {
+  const s = findSkill(skillsData, name);
+  return !!s && s.eligible === true && s.disabled !== true;
+}
+
 function check_both_skills_work() {
   const id = 'both-skills-work';
-  const j = openclawJson(['skills', 'list', '--json', '--active']);
+  const j = openclawJson(['skills', 'list', '--json']);
   if (!j.ok && j.reason === 'not_found') {
     return fail(id, 'openclaw CLI not found on PATH', null, 'Add openclaw to PATH or install OpenClaw.');
   }
   if (!j.ok) {
-    return fail(id, `skills list --active failed (${j.reason})`, { doc_summary_active: false, quick_note_active: false }, 'In OpenClaw, type /new to start a fresh session and confirm both skills load.');
+    return fail(id, `skills list failed (${j.reason})`, { doc_summary_active: false, quick_note_active: false }, 'In OpenClaw, type /new to start a fresh session and confirm both skills load.');
   }
-  const ds = !!findSkill(j.data, 'document-summary');
-  const qn = !!findSkill(j.data, 'quick-note');
+  const ds = skillActive(j.data, 'document-summary');
+  const qn = skillActive(j.data, 'quick-note');
   const evidence = { doc_summary_active: ds, quick_note_active: qn };
   if (ds && qn) {
     return pass(id, 'Both document-summary and quick-note active', evidence);
   }
   const notActive = [!ds && 'document-summary', !qn && 'quick-note'].filter(Boolean).join(', ');
-  return fail(id, `${notActive} not active`, evidence, 'In OpenClaw, type /new to start a fresh session and confirm both skills load.');
+  return fail(id, `${notActive} not active (eligible+enabled)`, evidence, 'In OpenClaw, type /new to start a fresh session and confirm both skills load.');
 }
 
 /** Count lines in a file matching a regex. Never throws, never returns content. */
@@ -622,7 +635,8 @@ function check_imap_installed() {
   if (!s) {
     return fail(id, 'imap-smtp-email not installed', { installed: false, ready: false, version: null }, "Tell the Claw: 'Install imap-smtp-email from ClawHub for this workspace now.'");
   }
-  const ready = s.ready === true || s.status === 'ready' || s.state === 'ready';
+  // Modern shape has no `ready`/`status`; eligible+!disabled is the proxy.
+  const ready = s.ready === true || s.status === 'ready' || s.state === 'ready' || (s.eligible === true && s.disabled !== true);
   const evidence = { installed: true, ready, version: s.version ?? null };
   if (ready) {
     return pass(id, `imap-smtp-email installed and ready (v${s.version ?? 'unknown'})`, evidence);
@@ -687,7 +701,17 @@ function check_email_cron_exists() {
 
 function check_brave_configured() {
   const id = 'brave-configured';
-  const val = configGet('tools.web_search.provider');
+  const r = runCmd('openclaw', ['config', 'get', 'tools.web_search.provider']);
+  const combined = `${r.stdout}\n${r.stderr}`;
+  if (/command not found|no such file|enoent/i.test(combined)) {
+    return fail(id, 'openclaw CLI not found on PATH', null, 'Add openclaw to PATH or install OpenClaw.');
+  }
+  // Modern OpenClaw has no tools.web_search.provider key — web search is
+  // per-plugin. Mirror M1's treatment of removed config keys: manual + note.
+  if (/config path not found/i.test(combined)) {
+    return manual(id, 'Manual on this OpenClaw version: tools.web_search.provider is not a config key; modern OpenClaw enables web search per-plugin. Run `openclaw plugins list` and confirm a Brave search provider plugin is enabled.');
+  }
+  const val = r.status === 0 ? r.stdout.trim() : null;
   if (val === 'brave') {
     return pass(id, 'web_search provider: brave', { 'tools.web_search.provider': 'brave' });
   }
@@ -782,8 +806,14 @@ function check_writer_exists() {
   if (!j.ok) {
     return fail(id, `agents list failed (${j.reason})`, { agent_present: false }, "Tell the Claw: 'Create the writer agent workspace now with a capable model and full identity files.'");
   }
+  // Modern shape: top-level array; agent key is `id` (e.g. "writer"),
+  // display name is `identityName`. There is no `name` field.
   const list = Array.isArray(j.data) ? j.data : j.data?.agents ?? [];
-  const w = (Array.isArray(list) ? list : []).find(a => a.name === 'writer');
+  const w = (Array.isArray(list) ? list : []).find(a =>
+    a.id === 'writer' ||
+    a.name === 'writer' ||
+    String(a.identityName ?? '').toLowerCase() === 'writer',
+  );
   if (w) {
     return pass(id, `writer agent present (model: ${w.model ?? 'unknown'}, workspace: ${w.workspace ?? w.workspace_path ?? 'unknown'})`, { agent_present: true, model: w.model ?? null, workspace_path: w.workspace ?? w.workspace_path ?? null });
   }
