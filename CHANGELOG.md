@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.0] - 2026-05-16
+
+**Full course coverage: M2–M10 implemented in the CLI.** Previously only M1 had real
+checks; M2–M10 returned a single `not-implemented` stub. The web app showed a
+paste-validator panel on every module that produced "Applied 0 checks (0 passed)" —
+pure friction. Now every module runs its recipe deterministically.
+
+### Added
+- **Shared helpers**: `readFileSafe`, `fileExists`, `grepFile`, `countMatchingLines`,
+  `openclawJson` (parse `openclaw … list --json`). All argv-style / native fs — no shell,
+  consistent with the 0.2.0-alpha.4 no-`bash -lc` posture.
+- **M2** (4 deterministic + 1 manual): `soul-exists`, `user-exists`, `memory-exists`,
+  `agents-exists`, `identity-durable`(manual).
+- **M3** (1 + 1): `telegram-connected` (JSON channel list, plain-text fallback),
+  `telegram-responds`(manual).
+- **M4** (3, shared cron fetch): `cron-exists`, `cron-schedule`, `cron-telegram`.
+- **M5** (3 + 1): `doc-summary-installed`, `quick-note-exists`, `both-skills-work`,
+  `skills-fresh-session`(manual).
+- **M6** (5 + 1): `imap-installed`, `imap-config-permissions`, `email-triage-exists`,
+  `agents-email-protocols`, `email-cron-exists`, `triage-summary-works`(manual).
+- **M7** (3 + 1): `brave-configured`, `research-brief-exists`, `agents-web-rule`,
+  `research-live-sources`(manual).
+- **M8** (4 + 3 manual): `smtp-configured` (key presence only, never values),
+  `config-permissions`, `outbound-rules`, `follow-up-exists`; `test-email-sent`,
+  `follow-up-approval-step`, `approval-gate-works` are manual (recipe-sanctioned —
+  the validator can't invoke `imap-smtp-email` or exercise an interactive cancel).
+- **M9** (5 + 2): `writer-exists`, `writer-soul-exists`, `writer-identity-files`,
+  `agent-comms-enabled`, `delegation-rule`, plus 2 judgment manuals.
+- **M10** (3 + 1, meta): orchestrates by running the M1–M9 runners, aggregating a
+  per-module report, and emitting a deterministic `OCM-<base32(sha256(report))>`
+  completion code.
+
+### Notes
+- Honest manual checks stay `manual: true` by design — fresh-session attestations,
+  mobile DM round-trips, and content-quality judgments cannot be auto-verified, and
+  faking them would teach users to click through work they didn't do.
+- CLI shapes for `channels`/`cron`/`skills`/`agents list --json` follow the recipe
+  assumptions; where the live CLI differs the check fails with a diagnostic in
+  `detail` rather than guessing (same posture as M1's modern-OpenClaw fallbacks).
+
 ## [0.2.0-alpha.4] - 2026-05-15
 
 **Security refactor: drop `bash -lc` from the execution path.**
