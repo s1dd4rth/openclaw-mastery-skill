@@ -438,32 +438,65 @@ function check_agents_exists() {
 
 function check_telegram_connected() {
   const id = 'telegram-connected';
-  const ACTIVE = ['active', 'connected', 'ready'];
+  const FIX = 'In OpenClaw, generate a fresh Telegram pairing code and re-pair from your phone. Pairing codes expire quickly — have the app ready before you start.';
+  // Legacy state strings; 'ok' added for older builds that exposed a status field.
+  const ACTIVE = ['active', 'connected', 'ready', 'ok'];
   const j = openclawJson(['channels', 'list', '--json']);
   if (!j.ok && j.reason === 'not_found') {
     return fail(id, 'openclaw CLI not found on PATH', null, 'Add openclaw to PATH or install OpenClaw.');
   }
-  let channels = null;
-  if (j.ok) {
-    channels = Array.isArray(j.data) ? j.data : j.data?.channels;
-  }
-  if (Array.isArray(channels)) {
-    const norm = channels.map(c => ({ type: String(c.type ?? c.kind ?? '').toLowerCase(), status: String(c.status ?? c.state ?? '').toLowerCase(), id: c.id ?? c.name ?? null }));
-    const tg = norm.find(c => c.type === 'telegram' && ACTIVE.includes(c.status));
-    const evidence = { channels: norm.map(c => ({ type: c.type, status: c.status })) };
-    if (tg) {
-      return pass(id, `Telegram connected (channel id: ${tg.id ?? 'unknown'}, status: ${tg.status})`, evidence);
+  if (j.ok && j.data && typeof j.data === 'object') {
+    // Modern shape: { chat: { telegram: { accounts, installed, origin }, ... } }.
+    // There is no live-connection field — `channels list` only exposes
+    // configured/installed state. Live responsiveness is the telegram-responds
+    // manual attestation, so this check verifies "configured", not "talking".
+    const chat = j.data.chat;
+    if (chat && typeof chat === 'object' && !Array.isArray(chat)) {
+      const evidence = {
+        channels: Object.entries(chat).map(([type, c]) => ({
+          type,
+          installed: !!c?.installed,
+          origin: c?.origin ?? null,
+          accounts: Array.isArray(c?.accounts) ? c.accounts.length : 0,
+        })),
+      };
+      const tg = chat.telegram;
+      const configured =
+        tg && tg.installed === true &&
+        tg.origin && !['none', 'unset', ''].includes(String(tg.origin)) &&
+        Array.isArray(tg.accounts) && tg.accounts.length > 0;
+      if (configured) {
+        return pass(id, `Telegram configured (account: ${tg.accounts[0]}, origin: ${tg.origin})`, evidence);
+      }
+      return fail(
+        id,
+        tg
+          ? `Telegram present but not fully configured (installed=${!!tg.installed}, origin=${tg.origin ?? 'unset'}, accounts=${Array.isArray(tg.accounts) ? tg.accounts.length : 0})`
+          : 'Telegram not configured',
+        evidence,
+        FIX,
+      );
     }
-    const anyTg = norm.find(c => c.type === 'telegram');
-    return fail(id, anyTg ? `Telegram channel status: ${anyTg.status || 'unknown'}` : 'Telegram not connected', evidence, 'In OpenClaw, generate a fresh Telegram pairing code and re-pair from your phone. Pairing codes expire quickly — have the app ready before you start.');
+    // Legacy shape: array of { type, status } or { channels: [...] }.
+    const channels = Array.isArray(j.data) ? j.data : j.data.channels;
+    if (Array.isArray(channels)) {
+      const norm = channels.map(c => ({ type: String(c.type ?? c.kind ?? '').toLowerCase(), status: String(c.status ?? c.state ?? '').toLowerCase(), id: c.id ?? c.name ?? null }));
+      const tg = norm.find(c => c.type === 'telegram' && ACTIVE.includes(c.status));
+      const evidence = { channels: norm.map(c => ({ type: c.type, status: c.status })) };
+      if (tg) {
+        return pass(id, `Telegram connected (channel id: ${tg.id ?? 'unknown'}, status: ${tg.status})`, evidence);
+      }
+      const anyTg = norm.find(c => c.type === 'telegram');
+      return fail(id, anyTg ? `Telegram channel status: ${anyTg.status || 'unknown'}` : 'Telegram not connected', evidence, FIX);
+    }
   }
-  // Fallback: plain-text listing, grep for telegram + active marker
+  // Fallback: plain-text listing.
   const r = runCmd('openclaw', ['channels', 'list']);
   const txt = (r.stdout || '').toLowerCase();
-  if (txt && /telegram/.test(txt) && /(active|connected|ready)/.test(txt)) {
-    return pass(id, 'Telegram connected (plain-text listing)', { channels: 'text', raw_sample: r.stdout.slice(0, 200) });
+  if (txt && /telegram/.test(txt) && /(active|connected|ready|ok|configured|installed)/.test(txt)) {
+    return pass(id, 'Telegram configured (plain-text listing)', { channels: 'text', raw_sample: r.stdout.slice(0, 200) });
   }
-  return fail(id, 'Telegram not connected', { channels: txt ? 'text' : null, raw_sample: (r.stdout || r.stderr || '').slice(0, 200) }, 'In OpenClaw, generate a fresh Telegram pairing code and re-pair from your phone. Pairing codes expire quickly — have the app ready before you start.');
+  return fail(id, 'Telegram not connected', { channels: txt ? 'text' : null, raw_sample: (r.stdout || r.stderr || '').slice(0, 200) }, FIX);
 }
 
 // ── Module 4 — Make It Proactive (shared cron fetch) ─────────────────────

@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.1] - 2026-05-16
+
+### Fixed
+- **`telegram-connected` (M3) parsed the wrong shape.** Modern `openclaw channels
+  list --json` returns `{ chat: { telegram: { accounts, installed, origin } } }` —
+  an object keyed by channel under `chat`, with no status/connection field. The
+  parser expected an array of `{type, status}` and so reported "Telegram not
+  connected" even when Telegram was configured and working. Now reads the modern
+  shape (pass = `installed:true` + real `origin` + ≥1 account), keeps the legacy
+  array shape and plain-text fallback. Verified against live mini output.
+- Honest scoping: `channels list` cannot prove a live message round-trip, so the
+  deterministic check verifies *configured* and the `telegram-responds` manual
+  attestation continues to cover actual responsiveness — not folded into the
+  auto-check.
+
 ## [0.3.0-alpha.0] - 2026-05-16
 
 **Full course coverage: M2–M10 implemented in the CLI.** Previously only M1 had real
