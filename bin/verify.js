@@ -535,12 +535,22 @@ function check_cron_schedule(cron) {
   if (!job) {
     return fail(id, 'Schedule or timezone missing or invalid', { schedule: null, timezone: null }, "Tell the Claw: 'Update the daily reflection cron expression and timezone to match my chosen time and timezone.'");
   }
-  const schedule = job.schedule ?? job.cron ?? null;
-  const timezone = job.timezone ?? job.tz ?? null;
-  if (schedule && timezone) {
-    return pass(id, `Schedule: ${schedule}; timezone: ${timezone}`, { schedule, timezone });
+  // Modern shape: schedule is an object { expr, tz, kind }. Older/alt shapes
+  // use a bare-string schedule with a root-level timezone — handle both.
+  const sched = job.schedule;
+  let expr = null;
+  let timezone = null;
+  if (sched && typeof sched === 'object') {
+    expr = sched.expr ?? sched.expression ?? sched.cron ?? sched.rule ?? null;
+    timezone = sched.tz ?? sched.timezone ?? null;
+  } else {
+    expr = (typeof sched === 'string' ? sched : null) ?? job.cron ?? null;
+    timezone = job.timezone ?? job.tz ?? null;
   }
-  return fail(id, 'Schedule or timezone missing or invalid', { schedule, timezone }, "Tell the Claw: 'Update the daily reflection cron expression and timezone to match my chosen time and timezone.'");
+  if (expr && timezone) {
+    return pass(id, `Schedule: ${expr}; timezone: ${timezone}`, { schedule: expr, timezone });
+  }
+  return fail(id, 'Schedule or timezone missing or invalid', { schedule: expr, timezone }, "Tell the Claw: 'Update the daily reflection cron expression and timezone to match my chosen time and timezone.'");
 }
 
 function check_cron_telegram(cron) {

@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.4] - 2026-05-16
+
+### Fixed
+- **M4 `cron-schedule` parsed the wrong shape.** Modern `openclaw cron list
+  --json` nests the cron expression and timezone inside a `schedule` object
+  (`schedule.expr`, `schedule.tz`), not as root-level `schedule`/`timezone`
+  string fields. The check read the object as a string (rendered
+  `[object Object]`) and found a null timezone, so a correctly-scheduled job
+  failed. Now reads `schedule.{expr,expression,cron,rule}` + `schedule.{tz,
+  timezone}`, with the bare-string + root-timezone shape kept as a fallback.
+  Verified against live mini output (`0 21 * * *`, `Asia/Calcutta`).
+- `cron-exists` (name regex) and `cron-telegram` (`delivery.channel`) were
+  already correct against the modern shape — no change.
+
 ## [0.3.0-alpha.3] - 2026-05-16
 
 ### Added
