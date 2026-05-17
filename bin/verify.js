@@ -13,7 +13,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
 import { homedir, platform as osPlatform } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1110,5 +1110,18 @@ try {
   response.detail = `module ${moduleNum} runner threw: ${String(e?.stack ?? e?.message ?? e).slice(0, 400)}`;
 }
 
-process.stdout.write(JSON.stringify(response));
+const out = JSON.stringify(response);
+
+// Persist the canonical JSON to a stable path. The agent that invokes this
+// skill may reformat its chat reply per its own USER.md/persona preferences
+// (bullets, bold, summary tables) — that destroys the payload the web app
+// parses. This file is the agent-proof source of truth: `cat` it and paste
+// verbatim. Never throws (if ~/.openclaw is absent, stdout stays authoritative).
+try {
+  writeFileSync(join(homedir(), '.openclaw', 'openclaw-mastery-last.json'), out);
+} catch {
+  // ~/.openclaw not present or not writable — stdout JSON is still emitted.
+}
+
+process.stdout.write(out);
 process.exit(0);

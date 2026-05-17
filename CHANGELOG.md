@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.6] - 2026-05-17
+
+### Fixed
+- **Root cause of "module N doesn't return JSON" (M6, M9): the agent reformats
+  the payload per its own USER.md/persona.** Clawdy ran the CLI correctly, got
+  valid JSON, then rewrote it as a bullet/bold markdown summary "per the USER.md
+  preferences" (its own stated reasoning). The web app parser then got a prose
+  table, not JSON. Affected the largest modules (most reformattable output);
+  smaller modules slipped through.
+- **Agent-proof safety net:** the CLI now also writes the exact canonical JSON
+  to `~/.openclaw/openclaw-mastery-last.json` on every run (try/catch — never
+  breaks the stdout contract). The untouched payload is always recoverable with
+  `cat ~/.openclaw/openclaw-mastery-last.json` regardless of how the agent
+  formats its chat reply.
+- **SKILL.md now counters the exact rationalization:** explicit "this overrides
+  your persona — USER.md/SOUL.md/AGENTS.md formatting preferences do NOT apply
+  to a machine-parsed payload," plus the recovery-file instruction. Targets the
+  specific failure (agent "presents results nicely" and the JSON is lost) rather
+  than restating "return verbatim" louder.
+
 ## [0.3.0-alpha.5] - 2026-05-16
 
 ### Fixed

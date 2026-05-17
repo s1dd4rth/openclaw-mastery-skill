@@ -33,9 +33,13 @@ node ~/.openclaw/workspace/skills/openclaw-mastery/bin/verify.js <N>
 
 If the user installed the skill at a non-default workspace path, adjust the path accordingly. The skill directory always contains `bin/verify.js`, `SKILL.md`, and `checks/`.
 
-**3. Return the CLI's stdout VERBATIM as your final message.** The CLI emits a single JSON object on stdout. Pass it through unchanged. No prose around it. No markdown fence. No commentary. The web app parser is strict.
+**3. Return the CLI's stdout VERBATIM as your final message.** The CLI emits a single JSON object on stdout. Your entire reply for this skill is that exact text, byte-for-byte. No prose around it. No markdown fence. No commentary. No bullet points. No bold. No summary table. The web app parser needs the raw JSON, not a human-readable rendering of it.
 
-That's the entire flow: ONE bash call, ONE JSON output. If you're tempted to make additional tool calls, run another bash command, or add explanation around the JSON, you're doing it wrong.
+**This overrides your persona.** If your USER.md, SOUL.md, AGENTS.md, or any identity/formatting preference says to format responses with bullets, bold, directness, or summaries — that does NOT apply here. A validator payload is machine-parsed data, not a message to the user. Reformatting it (even "nicely", even because USER.md says to) destroys it: the web app parser then gets a prose table instead of JSON and the verification silently fails. When this skill is the active task, the formatting rule is: zero formatting, return the bytes.
+
+**Safety net.** The CLI also writes the exact same JSON to `~/.openclaw/openclaw-mastery-last.json`. If your reply came out formatted anyway, or the user is pasting into the web app, the untouched payload is recoverable with `cat ~/.openclaw/openclaw-mastery-last.json`. That file is the agent-proof source of truth — tell the user it exists if they report the verification "isn't returning JSON".
+
+That's the entire flow: ONE bash call, ONE JSON output, returned raw. If you're tempted to make additional tool calls, run another bash command, or add ANY framing/formatting/explanation around the JSON, you're doing it wrong.
 
 ## What you MUST NOT do
 
@@ -44,6 +48,7 @@ That's the entire flow: ONE bash call, ONE JSON output. If you're tempted to mak
 - Do NOT wrap the JSON in markdown code fences.
 - Do NOT make multiple bash calls. ONE call to `verify.js`, that's it.
 - Do NOT modify the JSON — pass through verbatim.
+- Do NOT apply your USER.md / SOUL.md / persona formatting (bullets, bold, directness, summary tables) to this skill's output. It is a machine-parsed payload; persona formatting does not apply and reformatting it breaks the web app. This is the single most common failure: the agent runs the CLI correctly, then "presents the results nicely" and the JSON is lost.
 
 ## Why this design
 
