@@ -1058,6 +1058,49 @@ function stubModule(n) {
   return [manual('not-implemented', `Module ${n} CLI implementation pending; use manual toggles in the web app for now.`)];
 }
 
+/**
+ * Tamper-evidence. A clean install of this skill is a pristine `git clone`
+ * + `git pull` — every tracked file matches HEAD. The attack this defends
+ * against (observed twice in the field): an agent with write access editing
+ * bin/verify.js / SKILL.md / checks/* to FAKE check results ("make module N
+ * pass"). If any tracked source differs from HEAD, a `pass` cannot be trusted
+ * — the verifier itself was modified. We can't tamper-PROOF (a determined
+ * agent could delete this check too) but we can make casual fakery
+ * self-revealing in the JSON the user/web app receives. Never throws.
+ *
+ * Returns { status, modified_files, note }:
+ *   OK       — tracked source matches git HEAD
+ *   MODIFIED — tracked source differs from HEAD (results may be faked)
+ *   UNKNOWN  — not a git checkout / git unavailable (can't verify)
+ */
+function checkIntegrity() {
+  try {
+    const r = runCmd('git', ['-C', REPO_ROOT, 'diff', '--name-only', 'HEAD']);
+    if (r.status !== 0) {
+      return {
+        status: 'UNKNOWN',
+        modified_files: [],
+        note: 'Could not verify validator source against git (skill is not a git checkout, or git is unavailable). Results cannot be integrity-checked — treat with caution.',
+      };
+    }
+    const files = r.stdout.split('\n').map(s => s.trim()).filter(Boolean);
+    if (files.length === 0) {
+      return { status: 'OK', modified_files: [], note: null };
+    }
+    return {
+      status: 'MODIFIED',
+      modified_files: files,
+      note: 'VALIDATOR SOURCE WAS MODIFIED vs git HEAD. A check reporting "pass" CANNOT be trusted while the validator itself is edited — this is exactly how a faked verification looks. Inspect with `git -C <skill-dir> diff`, restore the honest validator with `git -C <skill-dir> checkout -- .`, then re-run.',
+    };
+  } catch {
+    return {
+      status: 'UNKNOWN',
+      modified_files: [],
+      note: 'Integrity self-check errored; results cannot be integrity-verified — treat with caution.',
+    };
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────
 
 const moduleArg = process.argv[2];
@@ -1084,8 +1127,17 @@ if (moduleArg === 'all') {
       lines.push(`M${n}  ERROR: ${String(e?.message ?? e).slice(0, 160)}`);
     }
   }
+  const integ = checkIntegrity();
+  const integLine =
+    integ.status === 'OK'
+      ? 'INTEGRITY: OK (validator source matches git HEAD)'
+      : integ.status === 'MODIFIED'
+        ? `INTEGRITY: ⚠ MODIFIED — ${integ.modified_files.join(', ')} differ(s) from HEAD. Results may be FAKED; restore with \`git checkout -- .\`.`
+        : `INTEGRITY: UNKNOWN — ${integ.note}`;
   process.stdout.write(
     `openclaw-mastery validator ${VALIDATOR_VERSION} (${PLATFORM})\n` +
+      integLine +
+      '\n' +
       lines.join('\n') +
       '\n',
   );
@@ -1122,6 +1174,10 @@ try {
   response.checks = [];
   response.detail = `module ${moduleNum} runner threw: ${String(e?.stack ?? e?.message ?? e).slice(0, 400)}`;
 }
+
+// Stamp tamper-evidence onto the payload so a faked check is self-revealing
+// in the JSON the web app/user receives, even if the chat reply is mangled.
+response.integrity = checkIntegrity();
 
 const out = JSON.stringify(response);
 

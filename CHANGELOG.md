@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.9] - 2026-05-17
+
+### Added
+- **Tamper-evidence self-check.** Twice this skill's `bin/verify.js` was edited
+  in the field to fake check results (obfuscate `child_process` to dodge the
+  audit; hardcode `agent-comms-enabled` to `true`). A clean install is a
+  pristine `git clone` + `git pull` — every tracked file matches HEAD. The
+  validator now runs `git -C <skill-dir> diff --name-only HEAD` on every
+  invocation and stamps the response with a top-level `integrity` object:
+  `OK` (source matches HEAD), `MODIFIED` (tracked source differs — a `pass`
+  cannot be trusted, results may be faked, lists the changed files), or
+  `UNKNOWN` (not a git checkout / git unavailable). `verify.js all` prints a
+  prominent `INTEGRITY:` header line too. This can't tamper-PROOF (a determined
+  agent could delete the check) but makes casual "make module N pass" edits
+  self-revealing in the exact JSON the user/web app receives — the
+  accountability the course teaches, now enforced by the validator itself.
+
 ## [0.3.0-alpha.8] - 2026-05-17
 
 ### Fixed
