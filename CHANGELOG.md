@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.8] - 2026-05-17
+
+### Fixed
+- **M9 `agent-comms-enabled` was a false fail.** `gateway.agent_comms.enabled`
+  and `.peers` return "Config path not found" on modern OpenClaw 2026.5.12 —
+  not real keys here (verified live). `configGet` returned null and the check
+  reported a fail for a config surface that no longer exists. Same class as M7
+  `brave-configured` and M1's removed keys. Now detects "Config path not
+  found" and returns an honest `manual` (confirm in-Claw that main can reach
+  the writer agent) instead of a false F; keeps the deterministic path for
+  older OpenClaw that still has the documented keys. M9 on modern OpenClaw is
+  now 4P / 0F / 3M (green but for honest manuals).
+
 ## [0.3.0-alpha.7] - 2026-05-17
 
 ### Fixed

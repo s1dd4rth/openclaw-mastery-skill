@@ -854,7 +854,20 @@ function check_writer_identity_files() {
 
 function check_agent_comms_enabled() {
   const id = 'agent-comms-enabled';
-  const enabledRaw = configGet('gateway.agent_comms.enabled');
+  const r1 = runCmd('openclaw', ['config', 'get', 'gateway.agent_comms.enabled']);
+  const combined = `${r1.stdout}\n${r1.stderr}`;
+  if (/command not found|no such file|enoent/i.test(combined)) {
+    return fail(id, 'openclaw CLI not found on PATH', null, 'Add openclaw to PATH or install OpenClaw.');
+  }
+  // Modern OpenClaw (2026.5.x) has no gateway.agent_comms.* config key
+  // ("Config path not found"). Same class as M7 brave-configured / M1's
+  // removed keys: the validator can't deterministically read this surface,
+  // so it's an honest manual, not a false fail.
+  if (/config path not found/i.test(combined)) {
+    return manual(id, 'Manual on this OpenClaw version: gateway.agent_comms.enabled/.peers are not config keys here. Confirm in your Claw that the main agent can reach the writer agent — ask main to delegate a task to writer and verify it round-trips. (`openclaw config validate` shows the modern config shape.)');
+  }
+  // Older OpenClaw with the documented keys: deterministic check.
+  const enabledRaw = r1.status === 0 ? r1.stdout.trim() : null;
   const peersRaw = configGet('gateway.agent_comms.peers');
   const enabled = enabledRaw === 'true' || enabledRaw === '1';
   let peers = [];
