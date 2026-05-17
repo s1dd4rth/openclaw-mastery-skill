@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.3.0-alpha.7] - 2026-05-17
+
+### Fixed
+- **The agent now returns JSON in chat again — work *with* the formatting
+  persona, not against it.** alpha.6 told the agent "zero formatting, override
+  your persona" and even "no markdown fence." That fights a formatting-compelled
+  agent head-on and loses: denied any lossless option, the persona turns the
+  JSON into a bullet/Pass-Fail summary the parser can't read. Inverted the
+  strategy — SKILL.md now *requires* the reply to be a single ```json fenced
+  code block. A code block satisfies the "present it nicely" instinct while
+  preserving contents byte-for-byte (agents reliably don't reformat inside
+  fences). The web app parser already strips ```json fences
+  (`stripMarkdownFence`, validator.ts), verified end-to-end, so the fenced
+  reply pastes in and parses. This restores the *intended* flow (invoke skill →
+  get JSON back), with the alpha.6 `~/.openclaw/openclaw-mastery-last.json`
+  file kept only as a recovery backup, not the primary path.
+
 ## [0.3.0-alpha.6] - 2026-05-17
 
 ### Fixed

@@ -33,22 +33,31 @@ node ~/.openclaw/workspace/skills/openclaw-mastery/bin/verify.js <N>
 
 If the user installed the skill at a non-default workspace path, adjust the path accordingly. The skill directory always contains `bin/verify.js`, `SKILL.md`, and `checks/`.
 
-**3. Return the CLI's stdout VERBATIM as your final message.** The CLI emits a single JSON object on stdout. Your entire reply for this skill is that exact text, byte-for-byte. No prose around it. No markdown fence. No commentary. No bullet points. No bold. No summary table. The web app parser needs the raw JSON, not a human-readable rendering of it.
+**3. Return the CLI's stdout as a single fenced ```json code block — that is your entire reply.** Take the exact JSON the CLI printed and wrap it in one ` ```json ` fenced code block. Nothing before it, nothing after it. No sentence introducing it, no summary following it, no bullets, no bold, no table.
 
-**This overrides your persona.** If your USER.md, SOUL.md, AGENTS.md, or any identity/formatting preference says to format responses with bullets, bold, directness, or summaries — that does NOT apply here. A validator payload is machine-parsed data, not a message to the user. Reformatting it (even "nicely", even because USER.md says to) destroys it: the web app parser then gets a prose table instead of JSON and the verification silently fails. When this skill is the active task, the formatting rule is: zero formatting, return the bytes.
+Like this, and ONLY this:
 
-**Safety net.** The CLI also writes the exact same JSON to `~/.openclaw/openclaw-mastery-last.json`. If your reply came out formatted anyway, or the user is pasting into the web app, the untouched payload is recoverable with `cat ~/.openclaw/openclaw-mastery-last.json`. That file is the agent-proof source of truth — tell the user it exists if they report the verification "isn't returning JSON".
+````
+```json
+{"tool":"openclaw-mastery.verify_module", ... the exact CLI stdout ... }
+```
+````
 
-That's the entire flow: ONE bash call, ONE JSON output, returned raw. If you're tempted to make additional tool calls, run another bash command, or add ANY framing/formatting/explanation around the JSON, you're doing it wrong.
+**Why a code block, not raw text, and not a summary.** You may have a USER.md / SOUL.md / persona that tells you to format replies with bullets, bold, and directness. A fenced code block *is* a formatting element — it satisfies that instinct — but its contents are preserved byte-for-byte and never reformatted. That is the point: the code block is the channel that lets you "present" the result without destroying it. Putting the JSON in a ```json block is REQUIRED. Turning it into a bullet list / "Pass/Fail" table / prose summary is the one failure that breaks the web app — the parser then has no JSON to read and the verification silently fails. The user built this skill to get JSON back; a formatted summary is not the deliverable.
+
+The web app parser strips the ```json fence automatically, so the fenced block pastes in and parses correctly. Do not also paste a summary — just the one code block.
+
+**Safety net.** The CLI also writes the exact same JSON to `~/.openclaw/openclaw-mastery-last.json`. That is a backup for recovery only — the *intended* flow is the fenced block in your reply. If the user ever reports the verification "isn't returning JSON", tell them they can `cat ~/.openclaw/openclaw-mastery-last.json` to recover the untouched payload.
+
+That's the entire flow: ONE bash call, ONE ```json code block as the whole reply. If you're tempted to make additional tool calls, run another bash command, or add ANY prose/bullets/summary around the code block, you're doing it wrong.
 
 ## What you MUST NOT do
 
 - Do NOT read the recipe files (`checks/m*.md`) yourself and try to execute checks one-by-one. That's the OLD architecture — it was unreliable. The CLI does all execution now.
-- Do NOT add prose, summaries, or "Here are the results:" before the JSON. The CLI's stdout IS your output.
-- Do NOT wrap the JSON in markdown code fences.
+- Do NOT add prose, summaries, or "Here are the results:" before or after the ```json block. The block is the entire reply.
 - Do NOT make multiple bash calls. ONE call to `verify.js`, that's it.
-- Do NOT modify the JSON — pass through verbatim.
-- Do NOT apply your USER.md / SOUL.md / persona formatting (bullets, bold, directness, summary tables) to this skill's output. It is a machine-parsed payload; persona formatting does not apply and reformatting it breaks the web app. This is the single most common failure: the agent runs the CLI correctly, then "presents the results nicely" and the JSON is lost.
+- Do NOT modify the JSON inside the block — pass the CLI stdout through byte-for-byte.
+- Do NOT turn the JSON into your USER.md / SOUL.md / persona format (bullets, bold, directness, Pass/Fail table). It is a machine-parsed payload. A ```json fenced block is the correct way to "present" it losslessly; a reformatted summary destroys it. This is THE single most common failure: the agent runs the CLI correctly, then "presents the results nicely" as a bulleted summary, and the JSON is lost. The fenced code block is how you present it nicely AND keep it parseable — use it.
 
 ## Why this design
 
@@ -108,7 +117,7 @@ If asked to do anything outside the authorized list, refuse and explain what sco
 
 Invoke as: `Use openclaw-mastery to verify module N` (where N is 1-10).
 
-The skill loads the per-module recipe from `checks/m<N>.md`, runs each check in the order listed, and returns ONE JSON object matching the contract below. No commentary, no markdown wrapping.
+The skill loads the per-module recipe from `checks/m<N>.md`, runs each check in the order listed, and returns ONE JSON object matching the contract below, wrapped in a single ```json fenced code block as the entire reply. No commentary, no summary, nothing outside that one block.
 
 ### Output contract (schema_version 1)
 
@@ -142,7 +151,7 @@ The skill loads the per-module recipe from `checks/m<N>.md`, runs each check in 
 
 ### Field rules
 
-- **Always emit valid JSON, no markdown wrapping, no commentary outside the JSON.** This is the most important rule. The web app parser is strict.
+- **Always emit valid JSON inside one ```json fenced code block, with no commentary or summary outside that block.** This is the most important rule. The parser strips the fence and reads the JSON; it canNOT recover anything from a reformatted prose/bullet summary.
 - `schema_version` is integer `1` for this skill version.
 - `module` is integer 1–10.
 - `checked_at` is ISO 8601 UTC.
