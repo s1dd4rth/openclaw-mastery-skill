@@ -141,6 +141,22 @@ function statMode(path) {
   };
 }
 
+/**
+ * Walk upward from startDir looking for an `.obsidian/` directory (the
+ * canonical Obsidian vault marker). Returns the vault root path on hit, or
+ * null if no ancestor is a vault. Never throws (existsSync swallows errors).
+ */
+function findVaultRoot(startDir) {
+  let dir = startDir;
+  let prev = null;
+  while (dir !== prev) {
+    if (existsSync(join(dir, '.obsidian'))) return dir;
+    prev = dir;
+    dir = dirname(dir);
+  }
+  return null;
+}
+
 function pass(id, detail, evidence) {
   return { id, pass: true, detail, evidence: evidence ?? null, fix_prompt: null };
 }
