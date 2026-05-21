@@ -13,7 +13,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, statSync, lstatSync, existsSync, realpathSync } from 'node:fs';
 import { homedir, platform as osPlatform } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -912,6 +912,82 @@ function check_delegation_rule() {
     return pass(id, 'AGENTS.md has writer delegation rule', { matched_lines: g.count });
   }
   return fail(id, 'AGENTS.md missing writer delegation rule', { matched_lines: 0 }, "Tell the Claw: 'Add a delegation rule to main AGENTS.md: use the writer agent for any long-form content over 300 words.'");
+}
+
+// ── Module 11 (Bonus) — Anchor Workspace in Obsidian Vault ───────────────
+
+function check_workspace_is_symlink() {
+  const id = 'workspace-is-symlink';
+  const path = '~/.openclaw/workspace';
+  const expanded = expandHome(path);
+  let st;
+  try {
+    st = lstatSync(expanded);
+  } catch {
+    return fail(
+      id,
+      '~/.openclaw/workspace not found — run the do-prompt to anchor it in your vault.',
+      { path, exists: false, is_symlink: false },
+      "Tell the Claw: 'Anchor my OpenClaw workspace inside my Obsidian vault.'",
+    );
+  }
+  if (st.isSymbolicLink()) {
+    return pass(id, '~/.openclaw/workspace is a symbolic link', { path, exists: true, is_symlink: true });
+  }
+  return fail(
+    id,
+    '~/.openclaw/workspace is a real directory, not a symlink — workspace is still in its original location.',
+    { path, exists: true, is_symlink: false },
+    "Tell the Claw: 'Anchor my OpenClaw workspace inside my Obsidian vault.'",
+  );
+}
+
+function check_workspace_target_in_vault() {
+  const id = 'workspace-target-in-vault';
+  const path = '~/.openclaw/workspace';
+  const expanded = expandHome(path);
+  let resolved;
+  try {
+    resolved = realpathSync(expanded);
+  } catch {
+    return fail(
+      id,
+      'Could not resolve the symlink target (link is broken or path does not exist).',
+      { workspace_path: path, resolved_target: null, vault_root: null },
+      "Tell the Claw: 'Anchor my OpenClaw workspace inside my Obsidian vault.'",
+    );
+  }
+  const vaultRoot = findVaultRoot(resolved);
+  if (vaultRoot) {
+    return pass(
+      id,
+      `Workspace target is inside Obsidian vault at ${vaultRoot}`,
+      { workspace_path: path, resolved_target: resolved, vault_root: vaultRoot },
+    );
+  }
+  return fail(
+    id,
+    `Workspace symlink points at ${resolved}, but no Obsidian vault was found in any ancestor (looked for .obsidian/).`,
+    { workspace_path: path, resolved_target: resolved, vault_root: null },
+    'Make sure the symlink target is inside a real Obsidian vault (vault root contains an `.obsidian/` directory).',
+  );
+}
+
+function check_identity_files_readable() {
+  const id = 'identity-files-readable';
+  const base = '~/.openclaw/workspace/';
+  const files = ['SOUL.md', 'USER.md', 'MEMORY.md', 'AGENTS.md'];
+  const presentList = files.filter(f => fileExists(base + f));
+  const missingList = files.filter(f => !presentList.includes(f));
+  if (missingList.length === 0) {
+    return pass(id, 'All four identity files readable through the symlink (SOUL, USER, MEMORY, AGENTS)', { files_present: presentList, files_missing: [] });
+  }
+  return fail(
+    id,
+    `Missing through the symlink: ${missingList.join(', ')}`,
+    { files_present: presentList, files_missing: missingList },
+    "If the files exist in the vault but aren't reachable here, the symlink target may be wrong. Verify with `readlink ~/.openclaw/workspace` and `ls -la $(readlink ~/.openclaw/workspace)`.",
+  );
 }
 
 // ── Module 10 — What Comes Next (meta: orchestrates M1–M9) ───────────────
