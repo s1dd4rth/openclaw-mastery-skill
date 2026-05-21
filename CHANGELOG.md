@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `schema_version` in the JSON contract is bumped independently of the package `version`. A breaking schema change is a major version bump for both.
 
+## [0.4.0-alpha.0] - 2026-05-21
+
+### Added
+- **Module 11 (Bonus): Anchor Workspace in Obsidian Vault.** First entry in
+  a "Bonus" track distinct from the M1–M10 course. Three deterministic
+  filesystem checks (`workspace-is-symlink`, `workspace-target-in-vault`,
+  `identity-files-readable`) plus one honest manual (`mobile-access-works`).
+  Pure `fs.lstatSync` / `realpathSync` / `existsSync` — no OpenClaw
+  config-key dependencies (avoids the recipe-vs-modern-OpenClaw mismatches
+  that bit M3/M5/M6/M7/M9 during the 0.3.0-alpha series). Recipe doc at
+  `checks/m11.md`.
+- New `findVaultRoot(startDir)` helper walks ancestors for `.obsidian/`;
+  reused by `workspace-target-in-vault`.
+
+### Changed
+- Range guard `moduleNum > 10` → `moduleNum > 11`. `verify.js all` loop
+  extended to include M11. **`runModule10()` unchanged** — its completion
+  code remains a function of M1–M9 only, by design, so bonus modules don't
+  poison the completion artifact for existing learners. Regression check
+  verified during implementation: M10 completion code `OCM-55BY63HC6IXP`
+  identical before and after adding M11.
+
 ## [0.3.0-alpha.9] - 2026-05-17
 
 ### Added
