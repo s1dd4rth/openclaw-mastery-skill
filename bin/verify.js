@@ -1144,6 +1144,12 @@ const MODULE_RUNNERS = {
     manual('delegated-draft', 'Manual: user requests a 500-word draft via writer agent and confirms main coordinated rather than drafted inline'),
   ],
   10: async () => runModule10(),
+  11: () => [
+    check_workspace_is_symlink(),
+    check_workspace_target_in_vault(),
+    check_identity_files_readable(),
+    manual('mobile-access-works', 'Manual: open Obsidian on your phone (vault synced via Obsidian Sync / iCloud / Syncthing — your choice) and confirm you can read SOUL.md.'),
+  ],
 };
 
 function stubModule(n) {
@@ -1203,7 +1209,7 @@ const moduleArg = process.argv[2];
 // sanity-check the whole course with one short, paste-safe command.
 if (moduleArg === 'all') {
   const lines = [];
-  for (let n = 1; n <= 10; n++) {
+  for (let n = 1; n <= 11; n++) {
     try {
       const runner = MODULE_RUNNERS[n];
       const checks = runner ? await runner() : stubModule(n);
@@ -1248,7 +1254,7 @@ const response = {
   checks: [],
 };
 
-if (!Number.isFinite(moduleNum) || moduleNum < 1 || moduleNum > 10) {
+if (!Number.isFinite(moduleNum) || moduleNum < 1 || moduleNum > 11) {
   response.checks = [];
   response.detail = `module argument out of range (got: ${moduleArg ?? 'undefined'})`;
   process.stdout.write(JSON.stringify(response));
